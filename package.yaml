@@ -1,0 +1,58 @@
+name:                fift-asm-dsl
+version:             0.1.0.0
+github:              "serokell/fift-asm-dsl"
+license:             BSD3
+author:              "Ilya Peresadin"
+maintainer:          "pva@serokell.io"
+copyright:           "2019 Ilya Peresadin"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/githubuser/fift-asm-dsl#readme>
+
+dependencies:
+- base-noprelude >= 4.9 && < 5
+- universum
+
+ghc-options:
+# workaround for building with -Werror on macos+clang
+- -optP-Wno-nonportable-include-path
+- -Wall
+- -fno-warn-orphans
+- -Widentities
+- -Wincomplete-record-updates
+- -Werror
+
+library:
+  source-dirs: src
+
+executables:
+  fift-asm-dsl-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - fift-asm-dsl
+
+tests:
+  fift-asm-dsl-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - fift-asm-dsl
