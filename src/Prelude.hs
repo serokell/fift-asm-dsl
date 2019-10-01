@@ -3,4 +3,4 @@ module Prelude
        ( module Universum
        ) where
 
-import Universum
+import Universum hiding (drop, (>>), swap, MaybeT)

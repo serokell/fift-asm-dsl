@@ -19,6 +19,42 @@ extra-source-files:
 # common to point users to the README.md file.
 description:         Please see the README on GitHub at <https://github.com/githubuser/fift-asm-dsl#readme>
 
+default-extensions:
+- AllowAmbiguousTypes
+- BangPatterns
+- ConstraintKinds
+- DataKinds
+- DefaultSignatures
+- DeriveDataTypeable
+- DeriveGeneric
+- DerivingStrategies
+- EmptyCase
+- FlexibleContexts
+- FlexibleInstances
+- FunctionalDependencies
+- GADTs
+- GeneralizedNewtypeDeriving
+- LambdaCase
+- MonadFailDesugaring
+- MultiParamTypeClasses
+- MultiWayIf
+- NamedFieldPuns
+- OverloadedStrings
+- OverloadedLabels
+- PatternSynonyms
+- RankNTypes
+- RecordWildCards
+- ScopedTypeVariables
+- StandaloneDeriving
+- TemplateHaskell
+- TupleSections
+- TypeFamilies
+- TypeOperators
+- UndecidableInstances
+- ViewPatterns
+- TypeApplications
+- DerivingVia
+
 dependencies:
 - base-noprelude >= 4.9 && < 5
 - universum
@@ -34,6 +70,10 @@ ghc-options:
 
 library:
   source-dirs: src
+  build-tools:
+    - autoexporter
+  dependencies:
+    - vinyl
 
 executables:
   fift-asm-dsl-exe:
