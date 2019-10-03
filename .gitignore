@@ -1,3 +1,4 @@
 .stack-work/
 fift-asm-dsl.cabal
 *~
+.DS_Store
