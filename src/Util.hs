@@ -5,6 +5,9 @@ module Util
        , Drop
        , Head
        , Swap
+       , Reverse
+
+       -- Reexports
        , Nat
        , type (-)
        , type (++)
@@ -32,3 +35,7 @@ type family Head (xs :: [k]) where
 type family Swap (xs :: [k]) where
     Swap (x ': y ': s) = y ': x ': s
     Swap _ = TypeError ('Text "Swap: at least two elements don't exist")
+
+type family Reverse (xs :: [k]) where
+    Reverse '[] = '[]
+    Reverse (x ': xs) = Reverse xs ++ '[x]

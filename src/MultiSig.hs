@@ -20,7 +20,10 @@ newtype Nonce = Nonce Word32
 type instance ToTVM Nonce = 'IntT
 
 instance DecodeSlice Nonce where
-    decodeSlice = I (LDU 31 `Seq` Ignore)
+    decodeFromSlice = ld32Unsigned
+
+instance EncodeBuilder Nonce where
+    encodeToBuilder = st32Unsigned
 
 -- Msg part
 data Msg = Msg
@@ -36,16 +39,21 @@ data MsgBody = MsgBody
 
 instance DecodeSlice Msg where
     type DecodeSliceFields Msg = DecodeSliceFields MsgBody ++ [DSet Signature, Nonce]
-    decodeSlice = do
-        decodeSlice @Nonce
-        decodeSlice @(DSet Signature)
-        decodeSlice @MsgBody
+    decodeFromSlice = do
+        decodeFromSlice @Nonce
+        decodeFromSlice @(DSet Signature)
+        decodeFromSlice @MsgBody
 
 instance DecodeSlice MsgBody where
     type DecodeSliceFields MsgBody = [RawMsg, Timestamp]
-    decodeSlice = do
-        decodeSlice @Timestamp
-        decodeSlice @RawMsg
+    decodeFromSlice = do
+        decodeFromSlice @Timestamp
+        decodeFromSlice @RawMsg
+
+instance EncodeBuilder MsgBody where
+    encodeToBuilder = do
+        encodeToBuilder @Timestamp
+        encodeToBuilder @RawMsg
 
 -- Storage part
 type OrderDict =  Dictionary (Hash MsgBody) Order
@@ -63,36 +71,47 @@ data Order = Order
 
 instance DecodeSlice Storage where
     type DecodeSliceFields Storage = [OrderDict, DSet PublicKey, Word32, Nonce]
-    decodeSlice = do
-        decodeSlice @Nonce
-        decodeSlice @Word32
-        decodeSlice @(DSet PublicKey)
-        decodeSlice @OrderDict
+    decodeFromSlice = do
+        decodeFromSlice @Nonce
+        decodeFromSlice @Word32
+        decodeFromSlice @(DSet PublicKey)
+        decodeFromSlice @OrderDict
+
+instance EncodeBuilder Storage where
+    encodeToBuilder = do
+        encodeToBuilder @Nonce
+        encodeToBuilder @Word32
+        encodeToBuilder @(DSet PublicKey)
+        encodeToBuilder @OrderDict
 
 instance DecodeSlice Order where
     type DecodeSliceFields Order = DSet Signature ': DecodeSliceFields MsgBody
-    decodeSlice = do
-        decodeSlice @MsgBody
-        decodeSlice @(DSet Signature)
+    decodeFromSlice = do
+        decodeFromSlice @MsgBody
+        decodeFromSlice @(DSet Signature)
 
 recvExternal :: '[Slice] :-> '[]
 recvExternal = do
+    -- Garbage collection of expired orders
     pushRoot
-    decodeSliceFull @Storage
+    decodeCell @Storage
     garbageCollectOrders
 
+    -- Check that nonces of the storage and the message matched
     move @4
-    decodeSliceFull @Msg
+    decodeFromSliceFull @Msg
     move @3
     push @7
     compareNonces
     drop -- TODO
     stacktype @[RawMsg, Timestamp, DSet Signature, OrderDict, DSet PublicKey, Word32, Nonce]
 
+    -- Check that the message hasn't expired
     push @1
     checkMsgExpiration
     drop -- TODO
 
+    -- Compute the message body hash
     push @0
     push @2
     computeMsgBodyHash
@@ -100,34 +119,47 @@ recvExternal = do
     -- TODO
     stacktype @[Hash MsgBody, RawMsg, DSet Signature, OrderDict, DSet PublicKey, Word32, Nonce]
 
+    -- Remove signatures of the message which are not valid
     move @2
     filterValidSignatures
     stacktype @[DSet Signature, Hash MsgBody, RawMsg, OrderDict, DSet PublicKey, Word32, Nonce]
     -- TODO
 
+    -- Add valid signatures to the storage's OrderDict
     move @3
     push @2
     mergeOrders
     stacktype @[OrderDict, Hash MsgBody, RawMsg, DSet PublicKey, Word32, Nonce]
 
+    -- Emit messages for orders which have at least K signatures
     push @4
     move @3
     move @3
     checkKSigs
+    stacktype @[OrderDict, DSet PublicKey, Word32, Nonce]
 
-    drop >> drop >> drop >> drop
+    reversePrefix @2 -- reverse first 4 elements
+    stacktype @[Nonce, Word32, DSet PublicKey, OrderDict]
+    encodeCell @Storage
+    popRoot
 
 garbageCollectOrders :: OrderDict & s :-> OrderDict & s
 garbageCollectOrders = error "not implemented yet"
 
+-- | Return true if nonces equal.
 compareNonces :: Nonce & Nonce & s :-> Bool & s
-compareNonces = error "not implemented"
+compareNonces = equalInt
 
+-- | Returns True, if a passed timestamp hasn't expired.
 checkMsgExpiration :: Timestamp & s :-> Bool & s
-checkMsgExpiration = error "not implemented yet"
+checkMsgExpiration = do
+    now
+    greaterInt
 
 computeMsgBodyHash:: Timestamp & RawMsg & s :-> Hash MsgBody & s
-computeMsgBodyHash = error "not implemented yet"
+computeMsgBodyHash = do
+    encodeCell @MsgBody
+    cellHash
 
 filterValidSignatures :: DSet Signature & s :-> DSet Signature & s
 filterValidSignatures = error "not implemented yet"

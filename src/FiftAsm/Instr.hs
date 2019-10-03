@@ -25,13 +25,27 @@ data Instr (inp :: [T]) (out :: [T]) where
     PUSH     :: forall (n :: Nat) s . ProhibitMaybe (Take (n + 1) s) => Instr s (PushTF n s)
     POP      :: forall (n :: Nat) s . ProhibitMaybe (Take (n + 1) s) => Instr s (PopTF n s)
     PUSHINT  :: Integer -> Instr s ('IntT ': s)
-    PUSHROOT :: Instr s ('CellT ': s)
     DROP     :: ProhibitMaybe '[a] => Instr (a ': s) s
+    -- Custom instruction which is translated to REVERSE i+2, j
+    REVERSE_PREFIX
+        :: forall (n :: Nat) s . ProhibitMaybe (Take (n + 2) s)
+        => Instr s (Reverse (Take (n + 2) s))
+
+
+    PUSHROOT :: Instr s ('CellT ': s)
+    POPROOT  :: Instr ('CellT ': s) s
+
+    -- Comparison primitives
+    EQUAL    :: Instr ('IntT ': 'IntT ': s) ('IntT ': s)
+    GEQ      :: Instr ('IntT ': 'IntT ': s) ('IntT ': s)
+    LEQ      :: Instr ('IntT ': 'IntT ': s) ('IntT ': s)
+    GREATER  :: Instr ('IntT ': 'IntT ': s) ('IntT ': s)
 
     -- cell serialization (Builder manipulation primitives)
     NEWC     :: Instr s ('BuilderT ': s)
     ENDC     :: Instr ('BuilderT ': s) ('CellT ': s)
     STU      :: Bits -> Instr ('BuilderT ': 'IntT ': s) ('BuilderT ': s)
+    STSLICE  :: Instr ('BuilderT ': 'SliceT ': s) ('BuilderT ': s)
 
     -- cell deserialization (CellSlice primitives)
     CTOS     :: Instr ('CellT ': s) ('SliceT ': s)
@@ -45,6 +59,7 @@ data Instr (inp :: [T]) (out :: [T]) where
     -- dict primitives
     LDDICT  :: Instr ('SliceT ': s) ('SliceT ': 'DictT ': s)
     DICTGET :: Instr ('IntT ': 'DictT ': 'SliceT ': s) ('MaybeT 'SliceT ': s)
+    STDICT  :: Instr ('BuilderT ': 'DictT ': s) ('BuilderT ': s)
 
     NOW :: Instr s ('IntT ': s)
 
@@ -52,6 +67,10 @@ data Instr (inp :: [T]) (out :: [T]) where
     IF_MAYBE :: Instr (a ': s) t -> Instr s t -> Instr ('MaybeT a ': s) t
     IFELSE   :: Instr s t -> Instr s t -> Instr ('IntT ': s) t
     IF       :: Instr s t -> Instr ('IntT ': s) t
+
+    -- hashes
+    HASHCU  :: Instr ('CellT ': s) ('IntT ': s)  -- hashing a Cell
+    SHA256U :: Instr ('SliceT ': s) ('IntT ': s) -- hashing only Data bits of slice
 
 deriving instance Show (Instr a b)
 
