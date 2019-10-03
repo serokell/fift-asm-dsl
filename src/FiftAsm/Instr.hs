@@ -17,60 +17,67 @@ import Util
 newtype Bits = Bits Word32
     deriving (Eq, Ord, Show, Enum, Num, Real, Integral)
 
+type (&) (a :: T) (b :: [T]) = a ': b
+infixr 2 &
+
 data Instr (inp :: [T]) (out :: [T]) where
     Seq      :: Instr a b -> Instr b c -> Instr a c -- bind two programs
     Ignore   :: Instr a b -- will be ingored when printed
 
-    SWAP     :: ProhibitMaybe '[a, b] => Instr (a ': b ': s) (b ': a ': s)
+    SWAP     :: ProhibitMaybe '[a, b] => Instr (a & b & s) (b & a & s)
     PUSH     :: forall (n :: Nat) s . ProhibitMaybe (Take (n + 1) s) => Instr s (PushTF n s)
     POP      :: forall (n :: Nat) s . ProhibitMaybe (Take (n + 1) s) => Instr s (PopTF n s)
-    PUSHINT  :: Integer -> Instr s ('IntT ': s)
-    DROP     :: ProhibitMaybe '[a] => Instr (a ': s) s
+    PUSHINT  :: Integer -> Instr s ('IntT & s)
+    DROP     :: ProhibitMaybe '[a] => Instr (a & s) s
     -- Custom instruction which is translated to REVERSE i+2, j
     REVERSE_PREFIX
         :: forall (n :: Nat) s . ProhibitMaybe (Take (n + 2) s)
         => Instr s (Reverse (Take (n + 2) s))
 
+    PUSHROOT :: Instr s ('CellT & s)
+    POPROOT  :: Instr ('CellT & s) s
 
-    PUSHROOT :: Instr s ('CellT ': s)
-    POPROOT  :: Instr ('CellT ': s) s
-
-    -- Comparison primitives
-    EQUAL    :: Instr ('IntT ': 'IntT ': s) ('IntT ': s)
-    GEQ      :: Instr ('IntT ': 'IntT ': s) ('IntT ': s)
-    LEQ      :: Instr ('IntT ': 'IntT ': s) ('IntT ': s)
-    GREATER  :: Instr ('IntT ': 'IntT ': s) ('IntT ': s)
+    -- Arithmetic and comparison primitives
+    INC      :: Instr ('IntT & s) ('IntT & s)
+    EQUAL    :: Instr ('IntT & 'IntT & s) ('IntT & s)
+    GEQ      :: Instr ('IntT & 'IntT & s) ('IntT & s)
+    LEQ      :: Instr ('IntT & 'IntT & s) ('IntT & s)
+    GREATER  :: Instr ('IntT & 'IntT & s) ('IntT & s)
 
     -- cell serialization (Builder manipulation primitives)
-    NEWC     :: Instr s ('BuilderT ': s)
-    ENDC     :: Instr ('BuilderT ': s) ('CellT ': s)
-    STU      :: Bits -> Instr ('BuilderT ': 'IntT ': s) ('BuilderT ': s)
-    STSLICE  :: Instr ('BuilderT ': 'SliceT ': s) ('BuilderT ': s)
+    NEWC     :: Instr s ('BuilderT & s)
+    ENDC     :: Instr ('BuilderT & s) ('CellT & s)
+    STU      :: Bits -> Instr ('BuilderT & 'IntT & s) ('BuilderT & s)
+    STSLICE  :: Instr ('BuilderT & 'SliceT & s) ('BuilderT & s)
 
     -- cell deserialization (CellSlice primitives)
-    CTOS     :: Instr ('CellT ': s) ('SliceT ': s)
-    ENDS     :: Instr ('SliceT ': s) s
-    LDU      :: Bits -> Instr ('SliceT ': s) ('SliceT ': 'IntT ': s)
-    LDSLICE  :: Bits -> Instr ('SliceT ': s) ('SliceT ': 'SliceT ': s)
-    LDSLICEX :: Instr ('IntT ': 'SliceT ': s) ('SliceT ': 'SliceT ': s)
-    -- LDREFRTOS :: Instr ('SliceT ': s) ('SliceT ': 'SliceT ': s)
-    -- SCHKBITSQ :: Instr ('IntT ': 'SliceT ': s) ('IntT ': s)
+    CTOS     :: Instr ('CellT & s) ('SliceT & s)
+    ENDS     :: Instr ('SliceT & s) s
+    LDU      :: Bits -> Instr ('SliceT & s) ('SliceT & 'IntT & s)
+    LDSLICE  :: Bits -> Instr ('SliceT & s) ('SliceT & 'SliceT & s)
+    LDSLICEX :: Instr ('IntT & 'SliceT & s) ('SliceT & 'SliceT & s)
 
     -- dict primitives
-    LDDICT  :: Instr ('SliceT ': s) ('SliceT ': 'DictT ': s)
-    DICTGET :: Instr ('IntT ': 'DictT ': 'SliceT ': s) ('MaybeT 'SliceT ': s)
-    STDICT  :: Instr ('BuilderT ': 'DictT ': s) ('BuilderT ': s)
+    LDDICT  :: Instr ('SliceT & s) ('SliceT & 'DictT & s)
+    DICTGET :: Instr ('IntT & 'DictT & 'SliceT & s) ('MaybeT '[ 'SliceT ] & s)
+    STDICT  :: Instr ('BuilderT & 'DictT & s) ('BuilderT & s)
+    DICTREMMIN :: Instr ('IntT & 'DictT & s) ('MaybeT '[ 'SliceT, 'SliceT ] & 'DictT & s)
 
-    NOW :: Instr s ('IntT ': s)
+    NOW :: Instr s ('IntT & s)
+
+    -- This instruction doesn't exist in Fift Assembler
+    -- but it can be easily implemented as DUP
+    MAYBE_TO_BOOL :: Instr ('MaybeT a & s) ('IntT & 'MaybeT a & s)
 
     -- if statements
-    IF_MAYBE :: Instr (a ': s) t -> Instr s t -> Instr ('MaybeT a ': s) t
-    IFELSE   :: Instr s t -> Instr s t -> Instr ('IntT ': s) t
-    IF       :: Instr s t -> Instr ('IntT ': s) t
+    IF_MAYBE :: Instr (a ++ s) t -> Instr s t -> Instr ('MaybeT a & s) t
+    IFELSE   :: Instr s t -> Instr s t -> Instr ('IntT & s) t
+    IF       :: Instr s t -> Instr ('IntT & s) t
+    WHILE    :: Instr s ('IntT & t) -> Instr t s -> Instr s s
 
     -- hashes
-    HASHCU  :: Instr ('CellT ': s) ('IntT ': s)  -- hashing a Cell
-    SHA256U :: Instr ('SliceT ': s) ('IntT ': s) -- hashing only Data bits of slice
+    HASHCU  :: Instr ('CellT & s) ('IntT & s)  -- hashing a Cell
+    SHA256U :: Instr ('SliceT & s) ('IntT & s) -- hashing only Data bits of slice
 
 deriving instance Show (Instr a b)
 

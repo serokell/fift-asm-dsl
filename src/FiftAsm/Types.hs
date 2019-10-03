@@ -10,5 +10,5 @@ data T
     | BuilderT
     | NullT
 
-    | MaybeT T -- represented as either True : x or False
+    | MaybeT [T] -- represented as either True : x : y : z ... or False
     | DictT

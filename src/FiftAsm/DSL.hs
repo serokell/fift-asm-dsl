@@ -1,3 +1,5 @@
+{-# LANGUAGE NoApplicativeDo, RebindableSyntax #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE PolyKinds #-}
 
 module FiftAsm.DSL
@@ -42,7 +44,10 @@ module FiftAsm.DSL
        , stDict
        , lookupSet
        , lookupMap
+       , dictRemMin
+       , dictIter
 
+       , inc
        , equalInt
        , geqInt
        , leqInt
@@ -61,6 +66,7 @@ module FiftAsm.DSL
        , cast
        ) where
 
+import Prelude
 
 import qualified Data.Kind as Kind
 import GHC.TypeLits (type (+))
@@ -96,6 +102,7 @@ data Dictionary k v
 type DSet k = Dictionary k ()
 data Cell a
 data Builder
+data Mb (xs :: [Kind.Type])
 
 -- | RawMsg corresponds to Message object of TVM
 -- it contains destination address and body
@@ -114,11 +121,20 @@ type instance ToTVM Word32    = 'IntT
 type instance ToTVM Timestamp = 'IntT
 type instance ToTVM Bits      = 'IntT
 type instance ToTVM Bool      = 'IntT
+type instance ToTVM Integer   = 'IntT
+type instance ToTVM Natural   = 'IntT
 type instance ToTVM (Dictionary k v) = 'DictT
 type instance ToTVM (Cell a)  = 'CellT
 type instance ToTVM Builder   = 'BuilderT
-type instance ToTVM () = 'NullT
-type instance ToTVM (Maybe a) = 'MaybeT (ToTVM a)
+type instance ToTVM ()        = 'NullT
+type instance ToTVM (Mb xs)   = 'MaybeT (ToTVMs xs)
+
+-- Type family needed to determin key size of datatype
+-- It's needed to perform operations under dictionary.
+type family KeySize a :: Nat
+type instance KeySize (Hash a) = 256
+type instance KeySize Signature = 512
+type instance KeySize PublicKey = 256
 
 -- Instructions over :->
 
@@ -196,11 +212,36 @@ ldDict = I LDDICT
 stDict :: forall k v s . Builder & Dictionary k v & s :-> Builder & s
 stDict = I STDICT
 
-lookupSet :: DSet (Hash a) & s :-> Bool & s
+lookupSet :: DSet k & s :-> Bool & s
 lookupSet = error "not implemented yet"
 
-lookupMap :: Dictionary (Hash a) b & s :-> Maybe b & s
+lookupMap :: Dictionary k v & s :-> Mb '[v] & s
 lookupMap = error "not implemented yet"
+
+-- TODO: this function may be extended for DecodeSlice instances
+-- but it seems to be unnecessary for our cases
+dictRemMin
+    :: forall k v s . (KnownNat (KeySize k), ToTVM k ~ 'SliceT, ToTVM v ~ 'SliceT)
+    => Dictionary k v & s :-> (Mb '[ k, v ] & Dictionary k v & s)
+dictRemMin = do
+    pushInt (natVal @(KeySize k) @Proxy Proxy)
+    I DICTREMMIN
+
+-- TODO It's bad idea to pass @Dictionary k v@ to action
+-- because the action can accedintally modify it.
+-- But I dunno how to eliminate it without DIP.
+-- One of options is to put Dictionary to temporary register c7
+dictIter
+    :: forall k v s . (KnownNat (KeySize k), ToTVM k ~ 'SliceT, ToTVM v ~ 'SliceT)
+    => (k & v & Dictionary k v & s :-> Dictionary k v & s)
+    -> (Dictionary k v & s :-> s)
+dictIter onEntry = do
+    while (dictRemMin @k @v >> I MAYBE_TO_BOOL) $
+        ifMaybe @'[k, v] onEntry (I Ignore)
+    drop
+
+inc :: ToTVM a ~ 'IntT => a & s :-> a & s
+inc = I INC
 
 equalInt :: ToTVM a ~ 'IntT => a & a & s :-> Bool & s
 equalInt = I EQUAL
@@ -220,14 +261,9 @@ dataHash = I SHA256U
 cellHash :: Cell a & s :-> Hash a & s
 cellHash = I HASHCU
 
--- ldRefRToS :: Slice & s :-> Slice & Slice & s
--- ldRefRToS = I LDREFRTOS
-
--- sChkBitsQ :: (Bits & Slice & s) :-> (Bool & s)
--- sChkBitsQ  = I SCHKBITSQ
-
 -- if statements
-ifMaybe :: (a & s :-> t) -> (s :-> t) -> (Maybe a & s :-> t)
+ifMaybe :: forall a s t . (ToTVMs a ++ ToTVMs s ~ ToTVMs (a ++ s))
+        => (a ++ s :-> t) -> (s :-> t) -> (Mb a & s :-> t)
 ifMaybe (I t) (I f) = I (IF_MAYBE t f)
 
 ifElse  :: (s :-> t) -> (s :-> t)  -> (Bool & s :-> t)
@@ -235,6 +271,9 @@ ifElse (I t) (I f) = I (IFELSE t f)
 
 if_ :: (s :-> t) -> (Bool & s :-> t)
 if_ (I t) = I (IF t)
+
+while :: (s :-> Bool & t) -> (t :-> s) -> (s :-> s)
+while (I st) (I body) = I (WHILE st body)
 
 -- Application specific instructions
 now :: s :-> Timestamp & s

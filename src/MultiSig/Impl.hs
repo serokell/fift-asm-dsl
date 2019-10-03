@@ -60,6 +60,7 @@ recvExternal = do
 
     reversePrefix @2 -- reverse first 4 elements
     stacktype @[Nonce, Word32, DSet PublicKey, OrderDict]
+    inc
     encodeCell @Storage
     popRoot
 
