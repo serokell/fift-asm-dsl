@@ -17,8 +17,11 @@ module FiftAsm.DSL
        , Cell
        , Builder
        , Timestamp (..)
-       , Dictionary
-       , DSet
+       , Mb
+       , BitSize
+       , bitSize
+       , IsUnsignedTF
+       , IsUnsigned
 
        -- Instructions
        , drop
@@ -26,8 +29,12 @@ module FiftAsm.DSL
        , dup
        , push
        , pushInt
+       , unit
+       , true
+       , false
        , pop
-       , move
+       , moveOnTop
+       , rollRev
        , reversePrefix
 
        , pushRoot
@@ -40,13 +47,6 @@ module FiftAsm.DSL
        , endS
        , cToS
 
-       , ldDict
-       , stDict
-       , lookupSet
-       , lookupMap
-       , dictRemMin
-       , dictIter
-
        , inc
        , equalInt
        , geqInt
@@ -55,21 +55,27 @@ module FiftAsm.DSL
 
        , dataHash
        , cellHash
+       , checkSignS
 
        , ifMaybe
+       , fmapMaybe
        , ifElse
        , if_
+       , ifNot
+       , while
 
        , now
 
        , stacktype
+       , stacktype'
        , cast
+       , ignore
        ) where
 
 import Prelude
 
 import qualified Data.Kind as Kind
-import GHC.TypeLits (type (+))
+import GHC.TypeLits (type (+), type (<=))
 
 import FiftAsm.Instr
 import FiftAsm.Types
@@ -98,8 +104,7 @@ data Signature
 data PublicKey
 data Hash a
 newtype Timestamp = Timestamp Word32
-data Dictionary k v
-type DSet k = Dictionary k ()
+
 data Cell a
 data Builder
 data Mb (xs :: [Kind.Type])
@@ -123,32 +128,45 @@ type instance ToTVM Bits      = 'IntT
 type instance ToTVM Bool      = 'IntT
 type instance ToTVM Integer   = 'IntT
 type instance ToTVM Natural   = 'IntT
-type instance ToTVM (Dictionary k v) = 'DictT
 type instance ToTVM (Cell a)  = 'CellT
 type instance ToTVM Builder   = 'BuilderT
-type instance ToTVM ()        = 'NullT
+type instance ToTVM ()        = 'SliceT
 type instance ToTVM (Mb xs)   = 'MaybeT (ToTVMs xs)
 
+type family IsUnsignedTF a :: Bool where
+    IsUnsignedTF PublicKey = 'True
+    IsUnsignedTF (Hash a)  = 'True
+    IsUnsignedTF Word32    = 'True
+    IsUnsignedTF  _        = 'False
+
+class ToTVM a ~ 'IntT => IsUnsigned a where
+instance (IsUnsignedTF a ~ 'True, ToTVM a ~ 'IntT) => IsUnsigned a
+
+-- Dictionary stuff below.
 -- Type family needed to determin key size of datatype
 -- It's needed to perform operations under dictionary.
-type family KeySize a :: Nat
-type instance KeySize (Hash a) = 256
-type instance KeySize Signature = 512
-type instance KeySize PublicKey = 256
+
+type family BitSize k :: Nat
+type instance BitSize Signature = 512
+type instance BitSize PublicKey = 256
+type instance BitSize (Hash a) = 256
+
+bitSize :: forall k . KnownNat (BitSize k) => Bits
+bitSize = fromIntegral $ natVal @(BitSize k) @Proxy Proxy
 
 -- Instructions over :->
 
-drop :: ProhibitMaybe '[ToTVM a] => a & s :-> s
+drop :: ProhibitMaybe (ToTVM a) => a & s :-> s
 drop = I DROP
 
-dup :: forall a s . ProhibitMaybe '[ToTVM a] => a & s :-> a & a & s
+dup :: forall a s . ProhibitMaybe (ToTVM a) => a & s :-> a & a & s
 dup = I (PUSH @0)
 
-swap :: ProhibitMaybe '[ToTVM a, ToTVM b] => a & b & s :-> b & a & s
+swap :: ProhibitMaybes '[ToTVM a, ToTVM b] => a & b & s :-> b & a & s
 swap = I SWAP
 
 push :: forall (n :: Nat) s .
-    ( ProhibitMaybe (Take (n + 1) (ToTVMs s))
+    ( ProhibitMaybes (Take (n + 1) (ToTVMs s))
     , PushTF n (ToTVMs s) ~ ToTVMs (PushTF n s))
     => s :-> PushTF n s
 push = I (PUSH @n)
@@ -156,26 +174,45 @@ push = I (PUSH @n)
 pushInt :: (Integral a, ToTVM a ~ 'IntT) => a -> (s :-> a & s)
 pushInt = I . PUSHINT . toInteger
 
-type family MoveTF (n :: Nat) (xs :: [k]) where
-    MoveTF 0 xs = xs
-    MoveTF n (y ': xs) = Swap (y ': MoveTF (n - 1) xs)
+-- Unit represents empty cell
+unit :: s :-> () & s
+unit = I $ NEWC `Seq` ENDC `Seq` CTOS
+
+true :: s :-> Bool & s
+true = I TRUE
+
+false :: s :-> Bool & s
+false = I FALSE
 
 pop :: forall (n :: Nat) s .
-    ( ProhibitMaybe (Take (n + 1) (ToTVMs s))
+    ( ProhibitMaybes (Take (n + 1) (ToTVMs s))
     , PopTF n (ToTVMs s) ~ ToTVMs (PopTF n s))
     => s :-> PopTF n s
 pop = I (POP @n)
 
--- Move = push s_n; pop s_{n+1}
-move :: forall (n :: Nat) s . s :-> MoveTF n s
-move = error "not implemented yet" -- push @n >> pop @(n+1)
+rollRev
+    :: forall (n :: Nat) s .
+    ( ProhibitMaybes (Take n (ToTVMs s)), 1 <= n
+    , RollRevTF n (ToTVMs s) ~ ToTVMs (RollRevTF n s)
+    )
+    => s :-> RollRevTF n s
+rollRev = I (ROLLREV @n)
+
+-- equal to ROLLREV (i + 1)
+moveOnTop
+    :: forall (i :: Nat) s .
+    ( ProhibitMaybes (Take (i + 1) (ToTVMs s)), 1 <= i + 1
+    , RollRevTF (i + 1) (ToTVMs s) ~ ToTVMs (RollRevTF (i + 1) s)
+    )
+    => s :-> RollRevTF (i + 1) s
+moveOnTop = rollRev @(i + 1)
 
 reversePrefix
     :: forall (n :: Nat) s .
-    ( ProhibitMaybe (Take (n + 2) (ToTVMs s))
-    , Reverse (Take (n + 2) (ToTVMs s)) ~ ToTVMs (Reverse (Take (n + 2) s))
+    ( ProhibitMaybes (Take n (ToTVMs s)), 2 <= n
+    , Reverse (Take n (ToTVMs s)) ~ ToTVMs (Reverse (Take n s))
     )
-    => s :-> Reverse (Take (n + 2) s)
+    => s :-> Reverse (Take n s)
 reversePrefix = I (REVERSE_PREFIX @n)
 
 pushRoot :: forall a s . s :-> (Cell a & s)
@@ -205,41 +242,6 @@ endS = I ENDS
 cToS :: forall a s . Cell a & s :-> Slice & s
 cToS = I CTOS
 
-
-ldDict :: forall k v s . Slice & s :-> Slice & Dictionary k v & s
-ldDict = I LDDICT
-
-stDict :: forall k v s . Builder & Dictionary k v & s :-> Builder & s
-stDict = I STDICT
-
-lookupSet :: DSet k & s :-> Bool & s
-lookupSet = error "not implemented yet"
-
-lookupMap :: Dictionary k v & s :-> Mb '[v] & s
-lookupMap = error "not implemented yet"
-
--- TODO: this function may be extended for DecodeSlice instances
--- but it seems to be unnecessary for our cases
-dictRemMin
-    :: forall k v s . (KnownNat (KeySize k), ToTVM k ~ 'SliceT, ToTVM v ~ 'SliceT)
-    => Dictionary k v & s :-> (Mb '[ k, v ] & Dictionary k v & s)
-dictRemMin = do
-    pushInt (natVal @(KeySize k) @Proxy Proxy)
-    I DICTREMMIN
-
--- TODO It's bad idea to pass @Dictionary k v@ to action
--- because the action can accedintally modify it.
--- But I dunno how to eliminate it without DIP.
--- One of options is to put Dictionary to temporary register c7
-dictIter
-    :: forall k v s . (KnownNat (KeySize k), ToTVM k ~ 'SliceT, ToTVM v ~ 'SliceT)
-    => (k & v & Dictionary k v & s :-> Dictionary k v & s)
-    -> (Dictionary k v & s :-> s)
-dictIter onEntry = do
-    while (dictRemMin @k @v >> I MAYBE_TO_BOOL) $
-        ifMaybe @'[k, v] onEntry (I Ignore)
-    drop
-
 inc :: ToTVM a ~ 'IntT => a & s :-> a & s
 inc = I INC
 
@@ -255,16 +257,27 @@ greaterInt = I GREATER
 leqInt :: ToTVM a ~ 'IntT => a & a & s :-> Bool & s
 leqInt = I LEQ
 
-dataHash :: ToTVM a ~ 'SliceT => a & s :-> Hash a & s
+dataHash :: forall a x s . ToTVM x ~ 'SliceT => x & s :-> Hash a & s
 dataHash = I SHA256U
 
 cellHash :: Cell a & s :-> Hash a & s
 cellHash = I HASHCU
 
+checkSignS :: PublicKey & Signature & Slice & s :-> Bool & s
+checkSignS = I CHKSIGNS
+
 -- if statements
-ifMaybe :: forall a s t . (ToTVMs a ++ ToTVMs s ~ ToTVMs (a ++ s))
-        => (a ++ s :-> t) -> (s :-> t) -> (Mb a & s :-> t)
+ifMaybe
+    :: forall a s t . (ToTVMs a ++ ToTVMs s ~ ToTVMs (a ++ s))
+    => (a ++ s :-> t) -> (s :-> t) -> (Mb a & s :-> t)
 ifMaybe (I t) (I f) = I (IF_MAYBE t f)
+
+fmapMaybe
+    :: forall a b s .
+    ( ToTVMs a ++ ToTVMs s ~ ToTVMs (a ++ s)
+    , ToTVMs b ++ ToTVMs s ~ ToTVMs (b ++ s))
+    => (a ++ s :-> b ++ s) -> (Mb a & s :-> Mb b & s)
+fmapMaybe (I f) = I (FMAP_MAYBE f)
 
 ifElse  :: (s :-> t) -> (s :-> t)  -> (Bool & s :-> t)
 ifElse (I t) (I f) = I (IFELSE t f)
@@ -272,7 +285,10 @@ ifElse (I t) (I f) = I (IFELSE t f)
 if_ :: (s :-> t) -> (Bool & s :-> t)
 if_ (I t) = I (IF t)
 
-while :: (s :-> Bool & t) -> (t :-> s) -> (s :-> s)
+ifNot :: (s :-> t) -> (Bool & s :-> t)
+ifNot (I t) = I (IF t)
+
+while :: (s :-> Bool & s) -> (s :-> s) -> (s :-> s)
 while (I st) (I body) = I (WHILE st body)
 
 -- Application specific instructions
@@ -283,5 +299,11 @@ now = I NOW
 stacktype :: forall s . s :-> s
 stacktype = I Ignore
 
+stacktype' :: forall a s . (a ++ s) :-> (a ++ s)
+stacktype' = I Ignore
+
 cast :: forall a b s . a & s :-> b & s
 cast = I Ignore
+
+ignore :: forall a s . a & s :-> a & s
+ignore = I Ignore

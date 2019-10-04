@@ -12,6 +12,7 @@ module MultiSig.Types
        , Order (..)
        , Nonce (..)
        , OrderDict
+       , SignDict
        ) where
 
 import Prelude
@@ -30,10 +31,11 @@ instance EncodeBuilder Nonce where
     encodeToBuilder = st32Unsigned
 
 -- Msg part
+type SignDict = Dict PublicKey Signature
 data Msg = Msg
     { msgNonce      :: Nonce
-    , msgSignatures :: DSet Signature
-    , msgAddress    :: MsgBody
+    , msgSignatures :: SignDict
+    , msgBody       :: MsgBody
     }
 
 data MsgBody = MsgBody
@@ -42,10 +44,10 @@ data MsgBody = MsgBody
     }
 
 instance DecodeSlice Msg where
-    type DecodeSliceFields Msg = DecodeSliceFields MsgBody ++ [DSet Signature, Nonce]
+    type DecodeSliceFields Msg = DecodeSliceFields MsgBody ++ [SignDict, Nonce]
     decodeFromSlice = do
         decodeFromSlice @Nonce
-        decodeFromSlice @(DSet Signature)
+        decodeFromSlice @SignDict
         decodeFromSlice @MsgBody
 
 instance DecodeSlice MsgBody where
@@ -60,7 +62,7 @@ instance EncodeBuilder MsgBody where
         encodeToBuilder @RawMsg
 
 -- Storage part
-type OrderDict =  Dictionary (Hash MsgBody) Order
+type OrderDict =  Dict (Hash MsgBody) Order
 data Storage = Storage
     { sNonce  :: Nonce
     , sK      :: Word32

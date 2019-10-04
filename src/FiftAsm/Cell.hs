@@ -5,10 +5,12 @@
 module FiftAsm.Cell
        ( DecodeSlice (..)
        , decodeFromSliceFull
-       , decodeCell
+       , decodeFromCell
+       , decodeFromSliceUnsafe
 
        , EncodeBuilder (..)
-       , encodeCell
+       , encodeToCell
+       , encodeToSlice
        ) where
 
 import Prelude
@@ -30,19 +32,26 @@ decodeFromSliceFull = do
     decodeFromSlice @a
     endS
 
-decodeCell :: forall a s . DecodeSlice a => Cell a & s :-> (DecodeSliceFields a ++ s)
-decodeCell = do
+decodeFromCell :: forall a s . DecodeSlice a => Cell a & s :-> (DecodeSliceFields a ++ s)
+decodeFromCell = do
     cToS @a
     decodeFromSliceFull @a
 
-instance DecodeSlice Word32 where
-    decodeFromSlice = I $ LDU 31
+-- This version doesn't check that Slice is fully consumed
+decodeFromSliceUnsafe :: forall a s . DecodeSlice a => Slice & s :-> (DecodeSliceFields a ++ s)
+decodeFromSliceUnsafe = decodeFromSlice @a >> drop
 
-instance DecodeSlice (Dictionary k v) where
-    decodeFromSlice = ldDict
+instance DecodeSlice Word32 where
+    decodeFromSlice = I $ LDU 32
 
 instance DecodeSlice Signature where
-    decodeFromSlice = I $ LDSLICE 511
+    decodeFromSlice = I $ LDSLICE 512
+
+instance DecodeSlice PublicKey where
+    decodeFromSlice = I $ LDU 256
+
+instance DecodeSlice (Hash a) where
+    decodeFromSlice = I $ LDU 256
 
 instance DecodeSlice RawMsg where
     decodeFromSlice = do
@@ -53,7 +62,7 @@ instance DecodeSlice RawMsg where
         swap
 
 instance DecodeSlice Timestamp where
-    decodeFromSlice = I $ LDU 31
+    decodeFromSlice = I $ LDU 32
 
 -- Encoding
 class EncodeBuilder (a :: Kind.Type) where
@@ -64,23 +73,29 @@ class EncodeBuilder (a :: Kind.Type) where
 withBuilder :: forall a s t . (Builder & s :-> Builder & t) -> (s :-> Cell a & t)
 withBuilder (I act) = I $ NEWC `Seq` act `Seq` ENDC
 
-encodeCell :: forall a s . EncodeBuilder a => (EncodeBuilderFields a ++ s) :-> Cell a & s
-encodeCell = withBuilder @a (encodeToBuilder @a)
+encodeToCell :: forall a s . EncodeBuilder a => (EncodeBuilderFields a ++ s) :-> Cell a & s
+encodeToCell = withBuilder @a (encodeToBuilder @a)
+
+encodeToSlice :: forall a s . EncodeBuilder a => (EncodeBuilderFields a ++ s) :-> Slice & s
+encodeToSlice = encodeToCell @a >> cToS @a
 
 instance EncodeBuilder Word32 where
-    encodeToBuilder = I $ STU 31
-
-instance EncodeBuilder (Dictionary k v) where
-    encodeToBuilder = stDict
+    encodeToBuilder = I $ STU 32
 
 instance EncodeBuilder Signature where
     encodeToBuilder = stSlice
+
+instance EncodeBuilder PublicKey where
+    encodeToBuilder = I $ STU 256
+
+instance EncodeBuilder (Hash a) where
+    encodeToBuilder = I $ STU 256
 
 instance EncodeBuilder RawMsg where
     encodeToBuilder = stSlice
 
 instance EncodeBuilder Timestamp where
-    encodeToBuilder = I $ STU 31
+    encodeToBuilder = I $ STU 32
 
 -- TODO: define instances for Generic and Vinyl record
 -- TODO: define constraints which would be check that instances are defined

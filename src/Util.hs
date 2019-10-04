@@ -6,6 +6,7 @@ module Util
        , Head
        , Swap
        , Reverse
+       , RecAll_
 
        -- Reexports
        , Nat
@@ -39,3 +40,7 @@ type family Swap (xs :: [k]) where
 type family Reverse (xs :: [k]) where
     Reverse '[] = '[]
     Reverse (x ': xs) = Reverse xs ++ '[x]
+
+type family RecAll_ (rs :: [u]) (c :: u -> Constraint) :: Constraint where
+    RecAll_ '[] c = ()
+    RecAll_ (r ': rs) c = (c r, RecAll_ rs c)

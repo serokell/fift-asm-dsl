@@ -14,17 +14,17 @@ recvExternal :: '[Slice] :-> '[]
 recvExternal = do
     -- Garbage collection of expired orders
     pushRoot
-    decodeCell @Storage
+    decodeFromCell @Storage
     garbageCollectOrders
 
     -- Check that nonces of the storage and the message matched
-    move @4
+    moveOnTop @4
     decodeFromSliceFull @Msg
-    move @3
+    moveOnTop @3
     push @7
     compareNonces
     drop -- TODO
-    stacktype @[RawMsg, Timestamp, DSet Signature, OrderDict, DSet PublicKey, Word32, Nonce]
+    stacktype @[RawMsg, Timestamp, SignDict, OrderDict, DSet PublicKey, Word32, Nonce]
 
     -- Check that the message hasn't expired
     push @1
@@ -32,36 +32,37 @@ recvExternal = do
     drop -- TODO
 
     -- Compute the message body hash
-    push @0
+    dup
     push @2
     computeMsgBodyHash
-    pop @2
-    -- TODO
-    stacktype @[Hash MsgBody, RawMsg, DSet Signature, OrderDict, DSet PublicKey, Word32, Nonce]
+    pop @3
+    stacktype @[Hash MsgBody, Slice, RawMsg, SignDict, OrderDict, DSet PublicKey, Word32, Nonce]
 
     -- Remove signatures of the message which are not valid
-    move @2
+    push @5
+    moveOnTop @2
+    moveOnTop @4
     filterValidSignatures
     stacktype @[DSet Signature, Hash MsgBody, RawMsg, OrderDict, DSet PublicKey, Word32, Nonce]
     -- TODO
 
     -- Add valid signatures to the storage's OrderDict
-    move @3
+    moveOnTop @3
     push @2
     mergeOrders
     stacktype @[OrderDict, Hash MsgBody, RawMsg, DSet PublicKey, Word32, Nonce]
 
     -- Emit messages for orders which have at least K signatures
     push @4
-    move @3
-    move @3
+    moveOnTop @3
+    moveOnTop @3
     checkKSigs
     stacktype @[OrderDict, DSet PublicKey, Word32, Nonce]
 
-    reversePrefix @2 -- reverse first 4 elements
+    reversePrefix @4 -- reverse first 4 elements
     stacktype @[Nonce, Word32, DSet PublicKey, OrderDict]
     inc
-    encodeCell @Storage
+    encodeToCell @Storage
     popRoot
 
 garbageCollectOrders :: OrderDict & s :-> OrderDict & s
@@ -77,13 +78,34 @@ checkMsgExpiration = do
     now
     greaterInt
 
-computeMsgBodyHash:: Timestamp & RawMsg & s :-> Hash MsgBody & s
+computeMsgBodyHash:: Timestamp & RawMsg & s :-> Hash MsgBody & Slice & s
 computeMsgBodyHash = do
-    encodeCell @MsgBody
-    cellHash
+    encodeToSlice @MsgBody
+    dup
+    dataHash @MsgBody
 
-filterValidSignatures :: DSet Signature & s :-> DSet Signature & s
-filterValidSignatures = error "not implemented yet"
+filterValidSignatures :: SignDict & Slice & DSet PublicKey & s :-> DSet Signature & s
+filterValidSignatures = do
+    newDict @Signature @()
+    swap
+    dictIter $ do
+        stacktype' @[PublicKey, Signature, SignDict, DSet Signature, Slice, DSet PublicKey]
+        dup
+        push @6
+        dsetGet
+        flip ifElse (drop >> drop) $ do
+            stacktype' @[PublicKey, Signature, SignDict, DSet Signature, Slice, DSet PublicKey]
+            push @1
+            swap
+            push @5
+            rollRev @3
+            rollRev @3 -- TODO replace with roll
+            checkSignS
+            ifElse
+                (moveOnTop @2 >> dsetSet >> swap)
+                drop
+    pop @1
+    pop @1
 
 mergeOrders :: Hash MsgBody & OrderDict & DSet Signature & s
             :-> OrderDict & s
