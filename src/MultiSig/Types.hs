@@ -18,7 +18,6 @@ module MultiSig.Types
 import Prelude
 
 import FiftAsm
-import Util
 
 newtype Nonce = Nonce Word32
 
@@ -35,31 +34,26 @@ type SignDict = Dict PublicKey Signature
 data Msg = Msg
     { msgNonce      :: Nonce
     , msgSignatures :: SignDict
-    , msgBody       :: MsgBody
+    , msgBody       :: Cell MsgBody
     }
 
 data MsgBody = MsgBody
     { mbExpiration :: Timestamp
-    , mbRawMsg     :: RawMsg
+    , mbMsgObj     :: Cell MessageObject
     }
 
 instance DecodeSlice Msg where
-    type DecodeSliceFields Msg = DecodeSliceFields MsgBody ++ [SignDict, Nonce]
+    type DecodeSliceFields Msg = [Cell MsgBody, SignDict, Nonce]
     decodeFromSlice = do
         decodeFromSlice @Nonce
         decodeFromSlice @SignDict
-        decodeFromSlice @MsgBody
+        decodeFromSlice @(Cell MsgBody)
 
 instance DecodeSlice MsgBody where
-    type DecodeSliceFields MsgBody = [RawMsg, Timestamp]
+    type DecodeSliceFields MsgBody = [Cell MessageObject, Timestamp]
     decodeFromSlice = do
         decodeFromSlice @Timestamp
-        decodeFromSlice @RawMsg
-
-instance EncodeBuilder MsgBody where
-    encodeToBuilder = do
-        encodeToBuilder @Timestamp
-        encodeToBuilder @RawMsg
+        decodeFromSlice @(Cell MessageObject)
 
 -- Storage part
 type OrderDict =  Dict (Hash MsgBody) Order
@@ -71,7 +65,7 @@ data Storage = Storage
     }
 
 data Order = Order
-    { oMsgBody    :: MsgBody
+    { oMsgBody    :: Cell MsgBody
     , oSignatures :: DSet Signature
     }
 
@@ -91,7 +85,7 @@ instance EncodeBuilder Storage where
         encodeToBuilder @OrderDict
 
 instance DecodeSlice Order where
-    type DecodeSliceFields Order = DSet Signature ': DecodeSliceFields MsgBody
+    type DecodeSliceFields Order = [DSet Signature, Cell MsgBody]
     decodeFromSlice = do
-        decodeFromSlice @MsgBody
+        decodeFromSlice @(Cell MsgBody)
         decodeFromSlice @(DSet Signature)

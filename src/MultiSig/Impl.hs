@@ -17,40 +17,42 @@ recvExternal = do
     decodeFromCell @Storage
     garbageCollectOrders
 
-    -- Check that nonces of the storage and the message matched
+    -- Load Msg on the stack
     moveOnTop @4
     decodeFromSliceFull @Msg
-    moveOnTop @3
-    push @7
+    stacktype @[Cell MsgBody, SignDict, Nonce, OrderDict, DSet PublicKey, Word32, Nonce]
+
+    -- Check that nonces of the storage and the message matched
+    moveOnTop @2
+    push @6
     compareNonces
     drop -- TODO
-    stacktype @[RawMsg, Timestamp, SignDict, OrderDict, DSet PublicKey, Word32, Nonce]
+    stacktype @[Cell MsgBody, SignDict, OrderDict, DSet PublicKey, Word32, Nonce]
 
     -- Check that the message hasn't expired
-    push @1
+    dup
     checkMsgExpiration
-    drop -- TODO
+    drop -- TODO implement check
 
     -- Compute the message body hash
     dup
-    push @2
     computeMsgBodyHash
-    pop @3
-    stacktype @[Hash MsgBody, Slice, RawMsg, SignDict, OrderDict, DSet PublicKey, Word32, Nonce]
+    stacktype @[Hash MsgBody, Cell MsgBody, SignDict, OrderDict, DSet PublicKey, Word32, Nonce]
 
     -- Remove signatures of the message which are not valid
+    dup
     push @5
-    moveOnTop @2
+    swap
     moveOnTop @4
     filterValidSignatures
-    stacktype @[DSet Signature, Hash MsgBody, RawMsg, OrderDict, DSet PublicKey, Word32, Nonce]
-    -- TODO
+    stacktype @[DSet Signature, Hash MsgBody, Cell MsgBody, OrderDict, DSet PublicKey, Word32, Nonce]
+    -- TODO check if empty
 
     -- Add valid signatures to the storage's OrderDict
     moveOnTop @3
     push @2
     mergeOrders
-    stacktype @[OrderDict, Hash MsgBody, RawMsg, DSet PublicKey, Word32, Nonce]
+    stacktype @[OrderDict, Hash MsgBody, Cell MsgBody, DSet PublicKey, Word32, Nonce]
 
     -- Emit messages for orders which have at least K signatures
     push @4
@@ -72,35 +74,39 @@ garbageCollectOrders = error "not implemented yet"
 compareNonces :: Nonce & Nonce & s :-> Bool & s
 compareNonces = equalInt
 
+-- | Fetch expiraiton time from Cell MsgBody
+getExpirationTime :: Cell MsgBody & s :-> Timestamp & s
+getExpirationTime = do
+    decodeFromCell @MsgBody
+    drop
+
 -- | Returns True, if a passed timestamp hasn't expired.
-checkMsgExpiration :: Timestamp & s :-> Bool & s
+checkMsgExpiration :: Cell MsgBody & s :-> Bool & s
 checkMsgExpiration = do
+    getExpirationTime
     now
     greaterInt
 
-computeMsgBodyHash:: Timestamp & RawMsg & s :-> Hash MsgBody & Slice & s
-computeMsgBodyHash = do
-    encodeToSlice @MsgBody
-    dup
-    dataHash @MsgBody
+computeMsgBodyHash:: Cell MsgBody & s :-> Hash MsgBody & s
+computeMsgBodyHash = cellHash
 
-filterValidSignatures :: SignDict & Slice & DSet PublicKey & s :-> DSet Signature & s
+filterValidSignatures :: SignDict & Hash MsgBody & DSet PublicKey & s :-> DSet Signature & s
 filterValidSignatures = do
     newDict @Signature @()
     swap
     dictIter $ do
-        stacktype' @[PublicKey, Signature, SignDict, DSet Signature, Slice, DSet PublicKey]
+        stacktype' @[PublicKey, Signature, SignDict, DSet Signature, Hash MsgBody, DSet PublicKey]
         dup
         push @6
         dsetGet
         flip ifElse (drop >> drop) $ do
-            stacktype' @[PublicKey, Signature, SignDict, DSet Signature, Slice, DSet PublicKey]
+            stacktype' @[PublicKey, Signature, SignDict, DSet Signature, Hash MsgBody, DSet PublicKey]
             push @1
             swap
             push @5
             rollRev @3
             rollRev @3 -- TODO replace with roll
-            checkSignS
+            chkSignU
             ifElse
                 (moveOnTop @2 >> dsetSet >> swap)
                 drop
@@ -111,5 +117,5 @@ mergeOrders :: Hash MsgBody & OrderDict & DSet Signature & s
             :-> OrderDict & s
 mergeOrders = error "not implemented yet"
 
-checkKSigs :: Hash MsgBody & RawMsg  & Word32 & OrderDict & s :-> OrderDict & s
+checkKSigs :: Hash MsgBody & Cell MsgBody  & Word32 & OrderDict & s :-> OrderDict & s
 checkKSigs = error "not implemented"

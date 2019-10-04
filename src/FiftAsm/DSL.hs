@@ -12,7 +12,7 @@ module FiftAsm.DSL
        , Signature
        , PublicKey
        , Hash
-       , RawMsg
+       , MessageObject
        , Slice
        , Cell
        , Builder
@@ -55,7 +55,8 @@ module FiftAsm.DSL
 
        , dataHash
        , cellHash
-       , checkSignS
+       , chkSignS
+       , chkSignU
 
        , ifMaybe
        , fmapMaybe
@@ -111,7 +112,7 @@ data Mb (xs :: [Kind.Type])
 
 -- | RawMsg corresponds to Message object of TVM
 -- it contains destination address and body
-data RawMsg
+data MessageObject
 
 -- | Slice represents raw bytes which
 -- corresponds to some Haskell datatype.
@@ -121,7 +122,6 @@ type instance ToTVM Signature = 'SliceT
 type instance ToTVM PublicKey = 'IntT
 type instance ToTVM (Hash a)  = 'IntT
 type instance ToTVM Slice     = 'SliceT
-type instance ToTVM RawMsg    = 'SliceT
 type instance ToTVM Word32    = 'IntT
 type instance ToTVM Timestamp = 'IntT
 type instance ToTVM Bits      = 'IntT
@@ -263,8 +263,11 @@ dataHash = I SHA256U
 cellHash :: Cell a & s :-> Hash a & s
 cellHash = I HASHCU
 
-checkSignS :: PublicKey & Signature & Slice & s :-> Bool & s
-checkSignS = I CHKSIGNS
+chkSignS :: PublicKey & Signature & Slice & s :-> Bool & s
+chkSignS = I CHKSIGNS
+
+chkSignU :: PublicKey & Signature & Hash a & s :-> Bool & s
+chkSignU = I CHKSIGNU
 
 -- if statements
 ifMaybe

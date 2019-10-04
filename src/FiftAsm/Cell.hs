@@ -53,13 +53,8 @@ instance DecodeSlice PublicKey where
 instance DecodeSlice (Hash a) where
     decodeFromSlice = I $ LDU 256
 
-instance DecodeSlice RawMsg where
-    decodeFromSlice = do
-        pushInt 0
-        ldSliceX @Slice
-        -- The first two instructions imitate creating of empty slice. dunno how to do it conventionally
-        cast @Slice @RawMsg -- Then cast remaining Slice to RawMsg
-        swap
+instance DecodeSlice (Cell a) where
+    decodeFromSlice = I LDREF
 
 instance DecodeSlice Timestamp where
     decodeFromSlice = I $ LDU 32
@@ -91,8 +86,8 @@ instance EncodeBuilder PublicKey where
 instance EncodeBuilder (Hash a) where
     encodeToBuilder = I $ STU 256
 
-instance EncodeBuilder RawMsg where
-    encodeToBuilder = stSlice
+instance EncodeBuilder (Cell a) where
+    encodeToBuilder = I STREF
 
 instance EncodeBuilder Timestamp where
     encodeToBuilder = I $ STU 32

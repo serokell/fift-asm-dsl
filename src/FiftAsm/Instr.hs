@@ -56,6 +56,7 @@ data Instr (inp :: [T]) (out :: [T]) where
     ENDC     :: Instr ('BuilderT & s) ('CellT & s)
     STU      :: Bits -> Instr ('BuilderT & 'IntT & s) ('BuilderT & s)
     STSLICE  :: Instr ('BuilderT & 'SliceT & s) ('BuilderT & s)
+    STREF    :: Instr ('BuilderT & 'CellT & s) ('BuilderT & s)
 
     -- cell deserialization (CellSlice primitives)
     CTOS     :: Instr ('CellT & s) ('SliceT & s)
@@ -63,6 +64,7 @@ data Instr (inp :: [T]) (out :: [T]) where
     LDU      :: Bits -> Instr ('SliceT & s) ('SliceT & 'IntT & s)
     LDSLICE  :: Bits -> Instr ('SliceT & s) ('SliceT & 'SliceT & s)
     LDSLICEX :: Instr ('IntT & 'SliceT & s) ('SliceT & 'SliceT & s)
+    LDREF    :: Instr ('SliceT & s) ('SliceT & 'CellT & s)
 
     -- dict primitives
     NEWDICT :: Instr s ('DictT & s)
@@ -92,6 +94,7 @@ data Instr (inp :: [T]) (out :: [T]) where
     HASHCU  :: Instr ('CellT & s) ('IntT & s)  -- hashing a Cell
     SHA256U :: Instr ('SliceT & s) ('IntT & s) -- hashing only Data bits of slice
     CHKSIGNS :: Instr ('IntT & 'SliceT & 'SliceT & s) ('IntT & s)
+    CHKSIGNU :: Instr ('IntT & 'SliceT & 'IntT & s) ('IntT & s)
 
 deriving instance Show (Instr a b)
 
