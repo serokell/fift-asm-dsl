@@ -35,6 +35,7 @@ module FiftAsm.DSL
        , pop
        , moveOnTop
        , rollRev
+       , roll
        , reversePrefix
 
        , pushRoot
@@ -58,8 +59,11 @@ module FiftAsm.DSL
        , chkSignS
        , chkSignU
 
-       , ifMaybe
+       , ifJust
+       , ifNothing
        , fmapMaybe
+       , just
+       , nothing
        , ifElse
        , if_
        , ifNot
@@ -198,6 +202,14 @@ rollRev
     => s :-> RollRevTF n s
 rollRev = I (ROLLREV @n)
 
+roll
+    :: forall (n :: Nat) s .
+    ( ProhibitMaybes (Take n (ToTVMs s)), 1 <= n
+    , RollTF n (ToTVMs s) ~ ToTVMs (RollTF n s)
+    )
+    => s :-> RollTF n s
+roll = I (ROLL @n)
+
 -- equal to ROLLREV (i + 1)
 moveOnTop
     :: forall (i :: Nat) s .
@@ -270,10 +282,15 @@ chkSignU :: PublicKey & Signature & Hash a & s :-> Bool & s
 chkSignU = I CHKSIGNU
 
 -- if statements
-ifMaybe
+ifJust
     :: forall a s t . (ToTVMs a ++ ToTVMs s ~ ToTVMs (a ++ s))
     => (a ++ s :-> t) -> (s :-> t) -> (Mb a & s :-> t)
-ifMaybe (I t) (I f) = I (IF_MAYBE t f)
+ifJust (I t) (I f) = I (IF_JUST t f)
+
+ifNothing
+    :: forall a s t . (ToTVMs a ++ ToTVMs s ~ ToTVMs (a ++ s))
+    => (s :-> t) -> (a ++ s :-> t)  -> (Mb a & s :-> t)
+ifNothing (I f) (I t) = I (IF_JUST t f)
 
 fmapMaybe
     :: forall a b s .
@@ -281,6 +298,13 @@ fmapMaybe
     , ToTVMs b ++ ToTVMs s ~ ToTVMs (b ++ s))
     => (a ++ s :-> b ++ s) -> (Mb a & s :-> Mb b & s)
 fmapMaybe (I f) = I (FMAP_MAYBE f)
+
+just :: forall a s . ToTVMs a ++ ToTVMs s ~ ToTVMs (a ++ s)
+     => a ++ s :-> Mb a & s
+just = I JUST
+
+nothing :: forall a s . s :-> Mb a & s
+nothing = I NOTHING
 
 ifElse  :: (s :-> t) -> (s :-> t)  -> (Bool & s :-> t)
 ifElse (I t) (I f) = I (IFELSE t f)

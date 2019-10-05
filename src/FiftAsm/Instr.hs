@@ -8,6 +8,7 @@ module FiftAsm.Instr
     , PushTF
     , PopTF
     , RollRevTF
+    , RollTF
     ) where
 
 import GHC.TypeLits (TypeError, ErrorMessage (..), type (-), type (+), type (<=))
@@ -33,6 +34,9 @@ data Instr (inp :: [T]) (out :: [T]) where
     TRUE     :: Instr s ('IntT & s)
     FALSE    :: Instr s ('IntT & s)
     DROP     :: ProhibitMaybe a => Instr (a & s) s
+    ROLL
+        :: forall (n :: Nat) s . (ProhibitMaybes (Take n s), 1 <= n)
+        => Instr s (RollTF n s)
     ROLLREV
         :: forall (n :: Nat) s . (ProhibitMaybes (Take n s), 1 <= n)
         => Instr s (RollRevTF n s)
@@ -68,6 +72,7 @@ data Instr (inp :: [T]) (out :: [T]) where
 
     -- dict primitives
     NEWDICT :: Instr s ('DictT & s)
+    DICTEMPTY :: Instr ('DictT & s) ('IntT & s)
     LDDICT  :: Instr ('SliceT & s) ('SliceT & 'DictT & s)
     DICTGET :: Instr ('IntT & 'DictT & 'SliceT & s) ('MaybeT '[ 'SliceT ] & s)
     DICTUGET :: Instr ('IntT & 'DictT & 'IntT & s) ('MaybeT '[ 'SliceT ] & s)
@@ -83,8 +88,10 @@ data Instr (inp :: [T]) (out :: [T]) where
     MAYBE_TO_BOOL :: Instr ('MaybeT a & s) ('IntT & 'MaybeT a & s)
 
     -- if statements
-    IF_MAYBE :: Instr (a ++ s) t -> Instr s t -> Instr ('MaybeT a & s) t
+    IF_JUST  :: Instr (a ++ s) t -> Instr s t -> Instr ('MaybeT a & s) t
     FMAP_MAYBE :: Instr (a ++ s) (b ++ s) -> Instr ('MaybeT a & s) ('MaybeT b & s)
+    JUST     :: Instr (a ++ s) ('MaybeT a & s)
+    NOTHING  :: Instr s ('MaybeT a & s)
     IFELSE   :: Instr s t -> Instr s t -> Instr ('IntT & s) t
     IF       :: Instr s t -> Instr ('IntT & s) t
     IF_NOT   :: Instr s t -> Instr ('IntT & s) t
@@ -105,6 +112,8 @@ type family PushTF (n :: Nat) (xs :: [k]) where
     PushTF n (y ': xs) = Swap (y ': PushTF (n - 1) xs)
 
 type RollRevTF n s = (Head (Drop (n - 1) s) ': Take (n - 1) s) ++ Drop n s
+
+type RollTF n s = Take (n - 1) (Drop 1 s) ++ (Head s ': Drop n s)
 
 type ProhibitMaybes (xs :: [T]) = RecAll_ xs ProhibitMaybe
 

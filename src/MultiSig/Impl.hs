@@ -49,16 +49,8 @@ recvExternal = do
     -- TODO check if empty
 
     -- Add valid signatures to the storage's OrderDict
-    moveOnTop @3
-    push @2
+    push @5
     mergeOrders
-    stacktype @[OrderDict, Hash MsgBody, Cell MsgBody, DSet PublicKey, Word32, Nonce]
-
-    -- Emit messages for orders which have at least K signatures
-    push @4
-    moveOnTop @3
-    moveOnTop @3
-    checkKSigs
     stacktype @[OrderDict, DSet PublicKey, Word32, Nonce]
 
     reversePrefix @4 -- reverse first 4 elements
@@ -104,8 +96,7 @@ filterValidSignatures = do
             push @1
             swap
             push @5
-            rollRev @3
-            rollRev @3 -- TODO replace with roll
+            roll @3
             chkSignU
             ifElse
                 (moveOnTop @2 >> dsetSet >> swap)
@@ -113,9 +104,7 @@ filterValidSignatures = do
     pop @1
     pop @1
 
-mergeOrders :: Hash MsgBody & OrderDict & DSet Signature & s
-            :-> OrderDict & s
+mergeOrders
+    :: Word32 & DSet Signature & Hash MsgBody & Cell MsgBody & OrderDict & s
+    :-> OrderDict & s
 mergeOrders = error "not implemented yet"
-
-checkKSigs :: Hash MsgBody & Cell MsgBody  & Word32 & OrderDict & s :-> OrderDict & s
-checkKSigs = error "not implemented"
