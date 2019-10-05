@@ -70,6 +70,7 @@ module FiftAsm.DSL
        , while
 
        , now
+       , sendRawMsg
 
        , stacktype
        , stacktype'
@@ -321,6 +322,9 @@ while (I st) (I body) = I (WHILE st body)
 -- Application specific instructions
 now :: s :-> Timestamp & s
 now = I NOW
+
+sendRawMsg :: Word32 & Cell MessageObject & s :-> s
+sendRawMsg = I SENDRAWMSG
 
 -- Auxiliary DSL instructions
 stacktype :: forall s . s :-> s

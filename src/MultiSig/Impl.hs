@@ -50,7 +50,7 @@ recvExternal = do
 
     -- Add valid signatures to the storage's OrderDict
     push @5
-    mergeOrders
+    extendOrder
     stacktype @[OrderDict, DSet PublicKey, Word32, Nonce]
 
     reversePrefix @4 -- reverse first 4 elements
@@ -59,8 +59,9 @@ recvExternal = do
     encodeToCell @Storage
     popRoot
 
+-- TODO Garbage collection of expired orders
 garbageCollectOrders :: OrderDict & s :-> OrderDict & s
-garbageCollectOrders = error "not implemented yet"
+garbageCollectOrders = ignore
 
 -- | Return true if nonces equal.
 compareNonces :: Nonce & Nonce & s :-> Bool & s
@@ -104,7 +105,70 @@ filterValidSignatures = do
     pop @1
     pop @1
 
-mergeOrders
+
+extendOrder
     :: Word32 & DSet Signature & Hash MsgBody & Cell MsgBody & OrderDict & s
     :-> OrderDict & s
-mergeOrders = error "not implemented yet"
+extendOrder = do
+    push @2
+    push @5
+    dictGet
+    let whenExist :: Order & Word32 & DSet Signature & s1
+                  :-> DSet Signature & DSet Signature & Word32 & Bool & s1
+                                                            --    ^ whether new or not
+        whenExist = do
+            cast @Order @Slice
+            decodeFromSliceFull @Order
+            swap
+            drop -- drop MsgBody from storage because there is one from msg
+            moveOnTop @2
+            swap
+            false -- not new one
+            roll @4
+
+    let whenNonExist :: Word32 & DSet Signature & s1
+                     :-> DSet Signature & DSet Signature & Word32 & Bool & s1
+                                                --    ^ whether new or not
+        whenNonExist = do
+            swap
+            newDict @Signature @()
+            true -- new one
+            roll @4
+
+    ifJust whenExist whenNonExist
+    dictMerge
+
+    let whenNotEnoughSignatures
+            :: DSet Signature & Bool & Hash MsgBody & Cell MsgBody & OrderDict & s1
+            :-> OrderDict & s1
+        whenNotEnoughSignatures = do
+            rollRev @4
+            encodeToSlice @Order
+            cast @Slice @Order
+            moveOnTop @2
+            moveOnTop @3
+            dictSet @(Hash MsgBody) @Order
+            swap
+            ifElse addToTimestampSet ignore
+
+    let whenEnoughSignatures = do
+            swap
+            moveOnTop @3
+            dictDelIgnore
+            swap
+            ifElse ignore removeFromTimestampSet
+            swap
+            decodeFromCell @MsgBody
+            pushInt 0 -- msg type = 0
+            sendRawMsg
+            drop
+
+    ifJust whenNotEnoughSignatures whenEnoughSignatures
+
+-- TODO Add to set to perform garbage collection effectively
+addToTimestampSet :: x & s :-> x & s
+addToTimestampSet = ignore
+
+-- TODO
+removeFromTimestampSet :: x & s :-> x & s
+removeFromTimestampSet = ignore

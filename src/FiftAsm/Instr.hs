@@ -80,8 +80,8 @@ data Instr (inp :: [T]) (out :: [T]) where
     DICTREMMIN :: Instr ('IntT & 'DictT & s) ('MaybeT '[ 'SliceT, 'SliceT ] & 'DictT & s)
     DICTSET  :: Instr ('IntT & 'DictT & 'SliceT & 'SliceT & s) ('DictT & s)
     DICTUSET :: Instr ('IntT & 'DictT & 'IntT & 'SliceT & s) ('DictT & s)
-
-    NOW :: Instr s ('IntT & s)
+    DICTDEL  :: Instr ('IntT & 'DictT & 'SliceT & s) ('IntT & 'DictT & s)
+    DICTUDEL :: Instr ('IntT & 'DictT & 'IntT & s) ('IntT & 'DictT & s)
 
     -- This instruction doesn't exist in Fift Assembler
     -- but it can be easily implemented as DUP
@@ -102,6 +102,9 @@ data Instr (inp :: [T]) (out :: [T]) where
     SHA256U :: Instr ('SliceT & s) ('IntT & s) -- hashing only Data bits of slice
     CHKSIGNS :: Instr ('IntT & 'SliceT & 'SliceT & s) ('IntT & s)
     CHKSIGNU :: Instr ('IntT & 'SliceT & 'IntT & s) ('IntT & s)
+
+    NOW :: Instr s ('IntT & s)
+    SENDRAWMSG :: Instr ('IntT & 'CellT & s) s
 
 deriving instance Show (Instr a b)
 

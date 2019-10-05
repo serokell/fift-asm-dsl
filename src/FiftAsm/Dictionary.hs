@@ -15,12 +15,10 @@ module FiftAsm.Dictionary
        , dictSet
        , dsetGet
        , dsetSet
+       , dictDelIgnore
        , dictEmpty
        , dickSize
        , dictMerge
-
-       , DictGetter'
-       , DictSetter'
        ) where
 
 import Prelude
@@ -46,62 +44,61 @@ instance EncodeBuilder (Dict k v) where
 
 -- Getter / Setter primitives
 
-class DictGetter k v where
+class DictOperations k v where
     dictGet :: Dict k v & k & s :-> Mb '[v] & s
-
-class DictSetter k v where
     dictSet :: Dict k v & k & v & s :-> Dict k v & s
+    dictDel :: Dict k v & k & s :-> Bool & Dict k v & s
 
 class (ToTVM k ~ tvmk, ToTVM v ~ tvmv, IsUnsignedTF k ~ isUnsignedFlag)
-      => DictGetter' tvmk tvmv isUnsignedFlag k v where
+      => DictOperations' tvmk tvmv isUnsignedFlag k v where
     dictGet' :: Dict k v & k & s :-> Mb '[v] & s
+    dictSet' :: Dict k v & k & v & s :-> Dict k v & s
+    dictDel' :: Dict k v & k & s :-> Bool & Dict k v & s
 
 instance (ToTVM k ~ 'SliceT, ToTVM v ~ 'SliceT, IsUnsignedTF k ~ 'False, KnownNat (BitSize k))
-        => DictGetter' 'SliceT 'SliceT 'False k v where
+        => DictOperations' 'SliceT 'SliceT 'False k v where
     dictGet' = do
         pushInt (bitSize @k)
         I DICTGET
-
-instance (ToTVM k ~ 'IntT, ToTVM v ~ 'SliceT, IsUnsignedTF k ~ 'True, KnownNat (BitSize k))
-        => DictGetter' 'IntT 'SliceT 'True k v where
-    dictGet' = do
-        pushInt (bitSize @k)
-        I DICTUGET
-
-instance DictGetter' (ToTVM k) (ToTVM v) (IsUnsignedTF k) k v => DictGetter k v where
-    dictGet = dictGet'
-
--- Dict Setter
-
-class (ToTVM k ~ tvmk, ToTVM v ~ tvmv, IsUnsignedTF k ~ isUnsignedFlag)
-      => DictSetter' tvmk tvmv isUnsignedFlag k v where
-    dictSet' :: Dict k v & k & v & s :-> Dict k v & s
-
-instance (ToTVM k ~ 'SliceT, ToTVM v ~ 'SliceT, IsUnsignedTF k ~ 'False, KnownNat (BitSize k))
-        => DictSetter' 'SliceT 'SliceT 'False k v where
     dictSet' = do
         pushInt (bitSize @k)
         I DICTSET
+    dictDel' = do
+        pushInt (bitSize @k)
+        I DICTDEL
 
 instance (ToTVM k ~ 'IntT, ToTVM v ~ 'SliceT, IsUnsignedTF k ~ 'True, KnownNat (BitSize k))
-        => DictSetter' 'IntT 'SliceT 'True k v where
+        => DictOperations' 'IntT 'SliceT 'True k v where
+    dictGet' = do
+        pushInt (bitSize @k)
+        I DICTUGET
     dictSet' = do
         pushInt (bitSize @k)
         I DICTUSET
+    dictDel' = do
+        pushInt (bitSize @k)
+        I DICTUDEL
 
-instance DictSetter' (ToTVM k) (ToTVM v) (IsUnsignedTF k) k v => DictSetter k v where
+instance DictOperations' (ToTVM k) (ToTVM v) (IsUnsignedTF k) k v => DictOperations k v where
+    dictGet = dictGet'
     dictSet = dictSet'
+    dictDel = dictDel'
 
-dsetGet :: forall k s . DictGetter k () => DSet k & k & s :-> Bool & s
+dsetGet :: forall k s . DictOperations k () => DSet k & k & s :-> Bool & s
 dsetGet = do
     dictGet
     ifJust (drop >> true) false
 
-dsetSet :: forall k s . (DictSetter k (), ProhibitMaybe (ToTVM k)) => DSet k & k & s :-> DSet k & s
+dsetSet :: forall k s . (DictOperations k (), ProhibitMaybe (ToTVM k)) => DSet k & k & s :-> DSet k & s
 dsetSet = do
     unit
     roll @3
     dictSet
+
+dictDelIgnore :: forall k v s . DictOperations k v => Dict k v & k & s :-> Dict k v & s
+dictDelIgnore = do
+    dictDel
+    drop
 
 newDict :: forall k v s . s :-> Dict k v & s
 newDict = I NEWDICT
@@ -184,7 +181,7 @@ dickSize = do
 dictMerge
     :: forall k v s .
     ( DictRemMinC k v
-    , DictGetter k v, DictSetter k v
+    , DictOperations k v
     )
     => Dict k v & Dict k v & Word32 & s :-> Mb '[Dict k v] & s
 dictMerge = do

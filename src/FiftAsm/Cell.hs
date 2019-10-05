@@ -59,6 +59,10 @@ instance DecodeSlice (Cell a) where
 instance DecodeSlice Timestamp where
     decodeFromSlice = I $ LDU 32
 
+-- Mock for DSet
+instance DecodeSlice () where
+    decodeFromSlice = unit >> swap
+
 -- Encoding
 class EncodeBuilder (a :: Kind.Type) where
     type EncodeBuilderFields a :: [Kind.Type]
@@ -91,6 +95,10 @@ instance EncodeBuilder (Cell a) where
 
 instance EncodeBuilder Timestamp where
     encodeToBuilder = I $ STU 32
+
+-- Mock for DSet
+instance EncodeBuilder () where
+    encodeToBuilder = swap >> drop
 
 -- TODO: define instances for Generic and Vinyl record
 -- TODO: define constraints which would be check that instances are defined

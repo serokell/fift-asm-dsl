@@ -89,3 +89,10 @@ instance DecodeSlice Order where
     decodeFromSlice = do
         decodeFromSlice @(Cell MsgBody)
         decodeFromSlice @(DSet Signature)
+
+instance EncodeBuilder Order where
+    encodeToBuilder = do
+        encodeToBuilder @(Cell MsgBody)
+        encodeToBuilder @(DSet Signature)
+
+type instance ToTVM Order = 'SliceT
