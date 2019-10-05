@@ -15,6 +15,8 @@ recvExternal = do
     -- Garbage collection of expired orders
     pushRoot
     decodeFromCell @Storage
+    -- TODO store garbage collected OrderDict regardless
+    -- of message processing
     garbageCollectOrders
 
     -- Load Msg on the stack
@@ -26,13 +28,13 @@ recvExternal = do
     moveOnTop @2
     push @6
     compareNonces
-    drop -- TODO
+    throwIfNot NonceMismatch
     stacktype @[Cell MsgBody, SignDict, OrderDict, DSet PublicKey, Word32, Nonce]
 
     -- Check that the message hasn't expired
     dup
     checkMsgExpiration
-    drop -- TODO implement check
+    throwIfNot MsgExpired
 
     -- Compute the message body hash
     dup
@@ -46,7 +48,9 @@ recvExternal = do
     moveOnTop @4
     filterValidSignatures
     stacktype @[DSet Signature, Hash MsgBody, Cell MsgBody, OrderDict, DSet PublicKey, Word32, Nonce]
-    -- TODO check if empty
+    dup
+    dictEmpty
+    throwIf NoValidSignatures
 
     -- Add valid signatures to the storage's OrderDict
     push @5

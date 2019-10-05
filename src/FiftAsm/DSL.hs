@@ -69,6 +69,8 @@ module FiftAsm.DSL
        , ifThenElse
        , Condition (..)
        , while
+       , throwIf
+       , throwIfNot
 
        , now
        , sendRawMsg
@@ -235,9 +237,6 @@ pushRoot = I PUSHROOT
 popRoot :: forall a s . (Cell a & s) :-> s
 popRoot = I POPROOT
 
--- pushException :: (Enum e, Exception e) => e -> s :-> Maybe Int & s
--- pushException = pushInt . fromEnum
-
 ldSliceX :: forall a s . ToTVM a ~ 'SliceT => Bits & Slice & s :-> Slice & a & s
 ldSliceX = I LDSLICEX
 
@@ -345,6 +344,12 @@ ifThenElse = \case
 
 while :: (s :-> Bool & s) -> (s :-> s) -> (s :-> s)
 while (I st) (I body) = I (WHILE st body)
+
+throwIf :: (Enum e, Exception e) => e -> (Bool & s :-> s)
+throwIf = I . THROWIF
+
+throwIfNot :: (Enum e, Exception e) => e -> (Bool & s :-> s)
+throwIfNot = I . THROWIFNOT
 
 -- Application specific instructions
 now :: s :-> Timestamp & s

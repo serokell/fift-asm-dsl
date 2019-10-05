@@ -95,7 +95,11 @@ data Instr (inp :: [T]) (out :: [T]) where
     IFELSE   :: Instr s t -> Instr s t -> Instr ('IntT & s) t
     IF       :: Instr s t -> Instr ('IntT & s) t
     IF_NOT   :: Instr s t -> Instr ('IntT & s) t
-    WHILE    :: Instr s ('IntT & s) -> Instr s s -> Instr s s
+
+    -- control flow statements
+    WHILE      :: Instr s ('IntT & s) -> Instr s s -> Instr s s
+    THROWIFNOT :: (Enum e, Exception e) => e -> Instr ('IntT & s) s
+    THROWIF    :: (Enum e, Exception e) => e -> Instr ('IntT & s) s
 
     -- hashes
     HASHCU  :: Instr ('CellT & s) ('IntT & s)  -- hashing a Cell

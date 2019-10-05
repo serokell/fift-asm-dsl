@@ -13,6 +13,7 @@ module MultiSig.Types
        , Nonce (..)
        , OrderDict
        , SignDict
+       , MultiSigError (..)
        ) where
 
 import Prelude
@@ -58,10 +59,10 @@ instance DecodeSlice MsgBody where
 -- Storage part
 type OrderDict =  Dict (Hash MsgBody) Order
 data Storage = Storage
-    { sNonce  :: Nonce
+    { sOrders :: OrderDict
+    , sNonce  :: Nonce
     , sK      :: Word32
     , sPKs    :: DSet PublicKey
-    , sOrders :: OrderDict
     }
 
 data Order = Order
@@ -96,3 +97,21 @@ instance EncodeBuilder Order where
         encodeToBuilder @(DSet Signature)
 
 type instance ToTVM Order = 'SliceT
+
+data MultiSigError
+    = NonceMismatch
+    | MsgExpired
+    | NoValidSignatures
+    deriving (Eq, Ord, Show, Generic)
+
+instance Exception MultiSigError
+
+instance Enum MultiSigError where
+    toEnum 32 = NonceMismatch
+    toEnum 33 = MsgExpired
+    toEnum 34 = NoValidSignatures
+    toEnum _ = error "Uknown MultiSigError id"
+
+    fromEnum NonceMismatch = 32
+    fromEnum MsgExpired = 33
+    fromEnum NoValidSignatures = 34
