@@ -139,6 +139,7 @@ dictIter
     => (k & v & Dict k v & s :-> Dict k v & s)
     -> (Dict k v & s :-> s)
 dictIter onEntry = do
+    comment "Iterate over dictionary"
     dictRemMin @k @v
     while (I MAYBE_TO_BOOL) $ do
         ifJust @'[k, v] onEntry ignore
@@ -157,6 +158,7 @@ dickSize
     :: forall k v s . DictRemMinC k v
     => Dict k v & Word32 & s :-> Mb '[Size] & s
 dickSize = do
+    comment "Compute dictionary size"
     pushInt @Size 0
     swap
     dictIter $ do
@@ -193,6 +195,7 @@ dictMerge
     )
     => Dict k v & Dict k v & Word32 & s :-> Mb '[Dict k v] & s
 dictMerge = do
+    comment "Merge two dictionaries"
     dup
     dictEmpty
 

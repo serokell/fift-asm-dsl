@@ -14,6 +14,7 @@ recvExternal :: '[Slice] :-> '[]
 recvExternal = do
     -- Garbage collection of expired orders
     pushRoot
+    comment "Decoding of storage fields"
     decodeFromCell @Storage
     -- TODO store garbage collected OrderDict regardless
     -- of message processing
@@ -21,10 +22,12 @@ recvExternal = do
 
     -- Load Msg on the stack
     moveOnTop @4
+    comment "Decoding of accepted message fields"
     decodeFromSliceFull @Msg
     stacktype @[Cell MsgBody, SignDict, Nonce, OrderDict, DSet PublicKey, Word32, Nonce]
 
     -- Check that nonces of the storage and the message matched
+    comment "Checking that nonces match"
     moveOnTop @2
     push @6
     compareNonces
@@ -32,16 +35,19 @@ recvExternal = do
     stacktype @[Cell MsgBody, SignDict, OrderDict, DSet PublicKey, Word32, Nonce]
 
     -- Check that the message hasn't expired
+    comment "Checking that the message hasn't expired"
     dup
     checkMsgExpiration
     throwIfNot MsgExpired
 
     -- Compute the message body hash
+    comment "Compute hash of message body"
     dup
     computeMsgBodyHash
     stacktype @[Hash MsgBody, Cell MsgBody, SignDict, OrderDict, DSet PublicKey, Word32, Nonce]
 
     -- Remove signatures of the message which are not valid
+    comment "Filter invalid signature from the message"
     dup
     push @5
     swap
@@ -57,6 +63,7 @@ recvExternal = do
     extendOrder
     stacktype @[OrderDict, DSet PublicKey, Word32, Nonce]
 
+    comment "Encode storage fields"
     reversePrefix @4 -- reverse first 4 elements
     stacktype @[Nonce, Word32, DSet PublicKey, OrderDict]
     inc

@@ -65,7 +65,6 @@ module FiftAsm.DSL
        , just
        , nothing
        , ifElse
-       , if_
        , ifThenElse
        , Condition (..)
        , while
@@ -79,6 +78,7 @@ module FiftAsm.DSL
        , stacktype'
        , cast
        , ignore
+       , comment
        ) where
 
 import Prelude
@@ -168,16 +168,18 @@ drop :: ProhibitMaybe (ToTVM a) => a & s :-> s
 drop = I DROP
 
 dup :: forall a s . ProhibitMaybe (ToTVM a) => a & s :-> a & a & s
-dup = I (PUSH @0)
+dup = I (PUSH (Proxy @0))
 
 swap :: ProhibitMaybes '[ToTVM a, ToTVM b] => a & b & s :-> b & a & s
 swap = I SWAP
 
-push :: forall (n :: Nat) s .
-    ( ProhibitMaybes (Take (n + 1) (ToTVMs s))
-    , PushTF n (ToTVMs s) ~ ToTVMs (PushTF n s))
-    => s :-> PushTF n s
-push = I (PUSH @n)
+push :: forall (i :: Nat) s .
+    ( ProhibitMaybes (Take (i + 1) (ToTVMs s))
+    , PushTF i (ToTVMs s) ~ ToTVMs (PushTF i s)
+    , KnownNat i
+    )
+    => s :-> PushTF i s
+push = I (PUSH (Proxy @i))
 
 pushInt :: (Integral a, ToTVM a ~ 'IntT) => a -> (s :-> a & s)
 pushInt = I . PUSHINT . toInteger
@@ -192,33 +194,38 @@ true = I TRUE
 false :: s :-> Bool & s
 false = I FALSE
 
-pop :: forall (n :: Nat) s .
-    ( ProhibitMaybes (Take (n + 1) (ToTVMs s))
-    , PopTF n (ToTVMs s) ~ ToTVMs (PopTF n s))
-    => s :-> PopTF n s
-pop = I (POP @n)
+pop :: forall (i :: Nat) s .
+    ( ProhibitMaybes (Take (i + 1) (ToTVMs s))
+    , PopTF i (ToTVMs s) ~ ToTVMs (PopTF i s)
+    , KnownNat i
+    )
+    => s :-> PopTF i s
+pop = I (POP (Proxy @i))
 
 rollRev
     :: forall (n :: Nat) s .
     ( ProhibitMaybes (Take n (ToTVMs s)), 1 <= n
     , RollRevTF n (ToTVMs s) ~ ToTVMs (RollRevTF n s)
+    , KnownNat n
     )
     => s :-> RollRevTF n s
-rollRev = I (ROLLREV @n)
+rollRev = I (ROLLREV (Proxy @n))
 
 roll
     :: forall (n :: Nat) s .
     ( ProhibitMaybes (Take n (ToTVMs s)), 1 <= n
     , RollTF n (ToTVMs s) ~ ToTVMs (RollTF n s)
+    , KnownNat n
     )
     => s :-> RollTF n s
-roll = I (ROLL @n)
+roll = I (ROLL (Proxy @n))
 
 -- equal to ROLLREV (i + 1)
 moveOnTop
     :: forall (i :: Nat) s .
     ( ProhibitMaybes (Take (i + 1) (ToTVMs s)), 1 <= i + 1
     , RollRevTF (i + 1) (ToTVMs s) ~ ToTVMs (RollRevTF (i + 1) s)
+    , KnownNat (i + 1)
     )
     => s :-> RollRevTF (i + 1) s
 moveOnTop = rollRev @(i + 1)
@@ -227,9 +234,10 @@ reversePrefix
     :: forall (n :: Nat) s .
     ( ProhibitMaybes (Take n (ToTVMs s)), 2 <= n
     , Reverse (Take n (ToTVMs s)) ~ ToTVMs (Reverse (Take n s))
+    , KnownNat n
     )
     => s :-> Reverse (Take n s)
-reversePrefix = I (REVERSE_PREFIX @n)
+reversePrefix = I (REVERSE_PREFIX (Proxy @n))
 
 pushRoot :: forall a s . s :-> (Cell a & s)
 pushRoot = I PUSHROOT
@@ -310,9 +318,6 @@ nothing = I NOTHING
 ifElse  :: (s :-> t) -> (s :-> t)  -> (Bool & s :-> t)
 ifElse (I t) (I f) = I (IFELSE t f)
 
-if_ :: (s :-> t) -> (Bool & s :-> t)
-if_ (I t) = I (IF t)
-
 -- | Predicate for @if ... then .. else ...@ construction,
 -- defines a kind of operation applied to the top elements of the current stack.
 data Condition st arg argl argr where
@@ -370,3 +375,6 @@ cast = I Ignore
 
 ignore :: forall a s . a & s :-> a & s
 ignore = I Ignore
+
+comment :: Text -> a :-> a
+comment = I . Comment

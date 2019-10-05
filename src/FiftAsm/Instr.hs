@@ -13,12 +13,13 @@ module FiftAsm.Instr
 
 import GHC.TypeLits (TypeError, ErrorMessage (..), type (-), type (+), type (<=))
 import Data.Vinyl.TypeLevel (type (++))
+import Fmt (Buildable)
 
 import FiftAsm.Types
 import Util
 
 newtype Bits = Bits Word32
-    deriving (Eq, Ord, Show, Enum, Num, Real, Integral)
+    deriving (Eq, Ord, Show, Enum, Num, Real, Integral, Buildable)
 
 type (&) (a :: T) (b :: [T]) = a ': b
 infixr 2 &
@@ -26,24 +27,25 @@ infixr 2 &
 data Instr (inp :: [T]) (out :: [T]) where
     Seq      :: Instr a b -> Instr b c -> Instr a c -- bind two programs
     Ignore   :: Instr a b                           -- will be ingored when printed
+    Comment  :: Text -> Instr a a                   -- print comment
 
     SWAP     :: ProhibitMaybes '[a, b] => Instr (a & b & s) (b & a & s)
-    PUSH     :: forall (i :: Nat) s . ProhibitMaybes (Take (i + 1) s) => Instr s (PushTF i s)
-    POP      :: forall (i :: Nat) s . ProhibitMaybes (Take (i + 1) s) => Instr s (PopTF i s)
+    PUSH     :: forall (i :: Nat) s . (ProhibitMaybes (Take (i + 1) s), KnownNat i) => Proxy i -> Instr s (PushTF i s)
+    POP      :: forall (i :: Nat) s . (ProhibitMaybes (Take (i + 1) s), KnownNat i) => Proxy i -> Instr s (PopTF i s)
     PUSHINT  :: Integer -> Instr s ('IntT & s)
     TRUE     :: Instr s ('IntT & s)
     FALSE    :: Instr s ('IntT & s)
     DROP     :: ProhibitMaybe a => Instr (a & s) s
     ROLL
-        :: forall (n :: Nat) s . (ProhibitMaybes (Take n s), 1 <= n)
-        => Instr s (RollTF n s)
+        :: forall (n :: Nat) s . (ProhibitMaybes (Take n s), 1 <= n, KnownNat n)
+        => Proxy n -> Instr s (RollTF n s)
     ROLLREV
-        :: forall (n :: Nat) s . (ProhibitMaybes (Take n s), 1 <= n)
-        => Instr s (RollRevTF n s)
+        :: forall (n :: Nat) s . (ProhibitMaybes (Take n s), 1 <= n, KnownNat n)
+        => Proxy n -> Instr s (RollRevTF n s)
     -- Custom instruction which is translated to REVERSE i+2, j
     REVERSE_PREFIX
-        :: forall (n :: Nat) s . (ProhibitMaybes (Take n s), 2 <= n)
-        => Instr s (Reverse (Take n s))
+        :: forall (n :: Nat) s . (ProhibitMaybes (Take n s), 2 <= n, KnownNat n)
+        => Proxy n -> Instr s (Reverse (Take n s))
 
     PUSHROOT :: Instr s ('CellT & s)
     POPROOT  :: Instr ('CellT & s) s
@@ -93,8 +95,6 @@ data Instr (inp :: [T]) (out :: [T]) where
     JUST     :: Instr (a ++ s) ('MaybeT a & s)
     NOTHING  :: Instr s ('MaybeT a & s)
     IFELSE   :: Instr s t -> Instr s t -> Instr ('IntT & s) t
-    IF       :: Instr s t -> Instr ('IntT & s) t
-    IF_NOT   :: Instr s t -> Instr ('IntT & s) t
 
     -- control flow statements
     WHILE      :: Instr s ('IntT & s) -> Instr s s -> Instr s s

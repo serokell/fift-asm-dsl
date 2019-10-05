@@ -74,6 +74,7 @@ library:
     - autoexporter
   dependencies:
     - vinyl
+    - fmt
 
 executables:
   fift-asm-dsl-exe:
@@ -85,6 +86,7 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - fift-asm-dsl
+    - fmt
 
 tests:
   fift-asm-dsl-test:
