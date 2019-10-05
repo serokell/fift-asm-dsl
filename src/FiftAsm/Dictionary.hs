@@ -87,7 +87,8 @@ instance DictOperations' (ToTVM k) (ToTVM v) (IsUnsignedTF k) k v => DictOperati
 dsetGet :: forall k s . DictOperations k () => DSet k & k & s :-> Bool & s
 dsetGet = do
     dictGet
-    ifJust (drop >> true) false
+    if IsJust then drop >> true
+    else false
 
 dsetSet :: forall k s . (DictOperations k (), ProhibitMaybe (ToTVM k)) => DSet k & k & s :-> DSet k & s
 dsetSet = do
@@ -142,7 +143,10 @@ dictIter onEntry = do
     while (I MAYBE_TO_BOOL) $ do
         ifJust @'[k, v] onEntry ignore
         dictRemMin @k @v
-    ifJust (drop >> drop) ignore
+    if IsJust then
+        drop >> drop
+    else
+        ignore
     drop
 
 dictEmpty :: Dict k v & s :-> Bool & s
@@ -166,7 +170,8 @@ dickSize = do
         push @3
         leqInt
         -- if size is greater than k, let's replace a dict with empt one to stop iteration
-        flip ifElse swap $ do
+        if NotHolds then swap
+        else do
             swap
             drop
             newDict @k @v
@@ -175,7 +180,10 @@ dickSize = do
     stacktype' @[Size, Word32, Size]
     cast @Size @Word32
     geqInt
-    ifElse (drop >> nothing @'[Size]) (just @'[Size])
+    if Holds then
+        drop >> nothing @'[Size]
+    else
+        just @'[Size]
 
 -- Returns either Just (Dict k v) or Nothing if size of Dict k v is not less than passed K.
 dictMerge
@@ -187,25 +195,28 @@ dictMerge
 dictMerge = do
     dup
     dictEmpty
-    let ifFirstEmpty = do
-            drop
-            dup
-            roll @3
-            dickSize
-            ifJust
-                (drop >> just @'[Dict k v])
-                (drop >> nothing)
+
     -- If the first one is empty let's return the second one
     -- computing its size beforehand
-    ifElse ifFirstEmpty $ do
+    if Holds then do
+        drop
+        dup
+        roll @3
+        dickSize
+        if IsJust then
+            drop >> just @'[Dict k v]
+        else
+            drop >> nothing
+    else do
         dup
         push @3
         swap
         dickSize
         stacktype' @[Mb '[Size], Dict k v, Dict k v, Word32]
         -- If size of the first one is not less that K, then just return Nothing
-        ifNothing
-            (drop >> drop >> drop >> nothing) $ do
+        if IsNothing then
+            drop >> drop >> drop >> nothing
+        else do
             -- Otherwise let's iter over the second one and add to the first one elements
             -- which don't present there
             moveOnTop @2
@@ -216,8 +227,9 @@ dictMerge = do
                 dictGet
                 stacktype' @[Mb '[v], k, v, Dict k v, Size, Dict k v, Word32]
                 -- Check whether a key is already in the first dict
-                ifJust
-                    (drop >> drop >> drop) $ do
+                if IsJust then
+                    drop >> drop >> drop
+                else do
                     moveOnTop @4
                     dictSet
                     rollRev @3
@@ -227,13 +239,16 @@ dictMerge = do
                     push @4
                     leqInt
                     -- Check if a current size is not less than k
-                    flip ifElse
-                        (rollRev @3) $ do
+                    if NotHolds then
+                        rollRev @3
+                    else do
                         rollRev @3
                         drop
                         newDict @k @v
             stacktype' @[Size, Dict k v, Word32]
             cast @Size @Word32
             rollRev @3
-            leqInt
-            ifElse (drop >> nothing) just
+            if IsLe then
+                drop >> nothing
+            else
+                just

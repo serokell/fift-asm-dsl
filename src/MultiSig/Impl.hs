@@ -92,15 +92,20 @@ filterValidSignatures = do
         dup
         push @6
         dsetGet
-        flip ifElse (drop >> drop) $ do
+        if NotHolds then
+            drop >> drop
+        else do
             stacktype' @[PublicKey, Signature, SignDict, DSet Signature, Hash MsgBody, DSet PublicKey]
             push @1
             swap
             push @5
             roll @3
             chkSignU
-            ifElse
-                (moveOnTop @2 >> dsetSet >> swap)
+            if Holds then do
+                moveOnTop @2
+                dsetSet
+                swap
+            else
                 drop
     pop @1
     pop @1
@@ -113,57 +118,48 @@ extendOrder = do
     push @2
     push @5
     dictGet
-    let whenExist :: Order & Word32 & DSet Signature & s1
-                  :-> DSet Signature & DSet Signature & Word32 & Bool & s1
-                                                            --    ^ whether new or not
-        whenExist = do
-            cast @Order @Slice
-            decodeFromSliceFull @Order
-            swap
-            drop -- drop MsgBody from storage because there is one from msg
-            moveOnTop @2
-            swap
-            false -- not new one
-            roll @4
+    if IsJust then do
+        stacktype' @[Order, Word32, DSet Signature]
+        cast @Order @Slice
+        decodeFromSliceFull @Order
+        swap
+        drop -- drop MsgBody from storage because there is one from msg
+        moveOnTop @2
+        swap
+        false -- not new one
+        roll @4
+        --                                                    v whether new order or not
+        stacktype' @[DSet Signature, DSet Signature, Word32, Bool]
+    else do
+        swap
+        newDict @Signature @()
+        true -- new one
+        roll @4
 
-    let whenNonExist :: Word32 & DSet Signature & s1
-                     :-> DSet Signature & DSet Signature & Word32 & Bool & s1
-                                                --    ^ whether new or not
-        whenNonExist = do
-            swap
-            newDict @Signature @()
-            true -- new one
-            roll @4
-
-    ifJust whenExist whenNonExist
     dictMerge
 
-    let whenNotEnoughSignatures
-            :: DSet Signature & Bool & Hash MsgBody & Cell MsgBody & OrderDict & s1
-            :-> OrderDict & s1
-        whenNotEnoughSignatures = do
-            rollRev @4
-            encodeToSlice @Order
-            cast @Slice @Order
-            moveOnTop @2
-            moveOnTop @3
-            dictSet @(Hash MsgBody) @Order
-            swap
-            ifElse addToTimestampSet ignore
-
-    let whenEnoughSignatures = do
-            swap
-            moveOnTop @3
-            dictDelIgnore
-            swap
-            ifElse ignore removeFromTimestampSet
-            swap
-            decodeFromCell @MsgBody
-            pushInt 0 -- msg type = 0
-            sendRawMsg
-            drop
-
-    ifJust whenNotEnoughSignatures whenEnoughSignatures
+    if IsJust then do
+        -- when not enough signatures
+        stacktype' @[DSet Signature, Bool, Hash MsgBody, Cell MsgBody, OrderDict]
+        rollRev @4
+        encodeToSlice @Order
+        cast @Slice @Order
+        moveOnTop @2
+        moveOnTop @3
+        dictSet @(Hash MsgBody) @Order
+        swap
+        ifElse addToTimestampSet ignore
+    else do
+        swap
+        moveOnTop @3
+        dictDelIgnore
+        swap
+        ifElse ignore removeFromTimestampSet
+        swap
+        decodeFromCell @MsgBody
+        pushInt 0 -- msg type = 0
+        sendRawMsg
+        drop
 
 -- TODO Add to set to perform garbage collection effectively
 addToTimestampSet :: x & s :-> x & s

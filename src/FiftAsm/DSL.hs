@@ -66,7 +66,8 @@ module FiftAsm.DSL
        , nothing
        , ifElse
        , if_
-       , ifNot
+       , ifThenElse
+       , Condition (..)
        , while
 
        , now
@@ -313,8 +314,34 @@ ifElse (I t) (I f) = I (IFELSE t f)
 if_ :: (s :-> t) -> (Bool & s :-> t)
 if_ (I t) = I (IF t)
 
-ifNot :: (s :-> t) -> (Bool & s :-> t)
-ifNot (I t) = I (IF t)
+-- | Predicate for @if ... then .. else ...@ construction,
+-- defines a kind of operation applied to the top elements of the current stack.
+data Condition st arg argl argr where
+    Holds     :: Condition s (Bool ': s) s s
+    NotHolds  :: Condition s (Bool ': s) s s
+    IsJust    :: (ToTVMs a ++ ToTVMs s ~ ToTVMs (a ++ s)) => Condition s (Mb a ': s) (a ++ s) s
+    IsNothing :: (ToTVMs a ++ ToTVMs s ~ ToTVMs (a ++ s)) => Condition s (Mb a ': s) s (a ++ s)
+
+    IsEq :: ToTVM a ~ 'IntT => Condition s (a ': a ': s) s s
+    -- IsNeq :: IfCmpXConstraints a Neq => Condition s (a ': a ': s) s s
+    -- IsLt :: IfCmpXConstraints a Lt => Condition s (a ': a ': s) s s
+    -- IsGt :: IfCmpXConstraints a Gt => Condition s (a ': a ': s) s s
+    IsLe :: ToTVM a ~ 'IntT => Condition s (a ': a ': s) s s
+    IsGe :: ToTVM a ~ 'IntT=> Condition s (a ': a ': s) s s
+
+-- | Defines semantics of @if ... then ... else ...@ construction.
+ifThenElse
+    :: Condition st arg argl argr
+    -> (argl :-> o) -> (argr :-> o) -> (arg :-> o)
+ifThenElse = \case
+    Holds -> ifElse
+    NotHolds -> flip ifElse
+    IsJust-> ifJust
+    IsNothing -> flip ifJust
+
+    IsEq -> \l r -> equalInt >> ifElse l r
+    IsLe -> \l r -> leqInt >> ifElse l r
+    IsGe -> \l r -> geqInt >> ifElse l r
 
 while :: (s :-> Bool & s) -> (s :-> s) -> (s :-> s)
 while (I st) (I body) = I (WHILE st body)
