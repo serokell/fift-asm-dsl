@@ -53,7 +53,6 @@ buildInstr STREF   = "STREF"
 buildInstr CTOS    = "CTOS"
 buildInstr ENDS    = "ENDS"
 buildInstr (LDU x) = buildWithInt x "LDU"
-buildInstr (LDSLICE  x) = buildWithInt x "LDSLICE"
 buildInstr LDSLICEX = "LDSLICEX"
 buildInstr LDREF    = "LDREF"
 buildInstr NEWDICT = "NEWDICT"
@@ -82,7 +81,7 @@ buildInstr NOTHING = "0 INT"
 buildInstr (WHILE inv body)
     = "WHILE:<{\n" <> indentF indentation (buildInstr inv)
     <> "}>DO<{\n" <> indentF indentation (buildInstr body)
-    <> "}>DO:\n"
+    <> "}>\n"
 buildInstr (THROWIF e)    = buildWithInt (fromEnum e) "THROWIF"
 buildInstr (THROWIFNOT e) = buildWithInt (fromEnum e) "THROWIFNOT"
 buildInstr HASHCU   = "HASHCU"

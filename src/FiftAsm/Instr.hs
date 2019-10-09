@@ -68,7 +68,7 @@ data Instr (inp :: [T]) (out :: [T]) where
     CTOS     :: Instr ('CellT & s) ('SliceT & s)
     ENDS     :: Instr ('SliceT & s) s
     LDU      :: Bits -> Instr ('SliceT & s) ('SliceT & 'IntT & s)
-    LDSLICE  :: Bits -> Instr ('SliceT & s) ('SliceT & 'SliceT & s)
+    -- LDSLICE  :: Bits -> Instr ('SliceT & s) ('SliceT & 'SliceT & s)
     LDSLICEX :: Instr ('IntT & 'SliceT & s) ('SliceT & 'SliceT & s)
     LDREF    :: Instr ('SliceT & s) ('SliceT & 'CellT & s)
 

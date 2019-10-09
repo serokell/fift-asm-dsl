@@ -45,7 +45,7 @@ instance DecodeSlice Word32 where
     decodeFromSlice = I $ LDU 32
 
 instance DecodeSlice Signature where
-    decodeFromSlice = I $ LDSLICE 512
+    decodeFromSlice = pushInt @Integer 512 >> I LDSLICEX
 
 instance DecodeSlice PublicKey where
     decodeFromSlice = I $ LDU 256
