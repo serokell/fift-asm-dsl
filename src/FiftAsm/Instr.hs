@@ -100,6 +100,7 @@ data Instr (inp :: [T]) (out :: [T]) where
     WHILE      :: Instr s ('IntT & s) -> Instr s s -> Instr s s
     THROWIFNOT :: (Enum e, Exception e) => e -> Instr ('IntT & s) s
     THROWIF    :: (Enum e, Exception e) => e -> Instr ('IntT & s) s
+    THROW      :: (Enum e, Exception e) => e -> Instr s t
 
     -- hashes
     HASHCU  :: Instr ('CellT & s) ('IntT & s)  -- hashing a Cell

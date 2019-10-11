@@ -6,14 +6,15 @@
 -- These types are only defined for clarity.
 
 module MultiSig.Types
-       ( Msg (..)
-       , MsgBody (..)
+       ( SignMsg (..)
+       , SignMsgBody (..)
        , Storage (..)
        , Order (..)
        , Nonce (..)
        , OrderDict
        , SignDict
        , MultiSigError (..)
+       , decodeMsgFromSliceFull
        ) where
 
 import Prelude
@@ -30,34 +31,59 @@ instance DecodeSlice Nonce where
 instance EncodeBuilder Nonce where
     encodeToBuilder = st32Unsigned
 
+-- data Msg = GetAllOrders | GetOrdersByKey PublicKey | SignMsg_ SignMsg
+
+decodeMsgFromSliceFull
+  :: '[] :-> '[]
+  -> '[PublicKey] :-> '[]
+  -> DecodeSliceFields SignMsg :-> '[]
+  -> '[Slice] :-> '[]
+decodeMsgFromSliceFull handleGetAll handleGetByKey handleSignMsg = do
+  decodeFromSlice @Word32
+  swap
+  dup
+  pushInt 2
+  if IsEq
+    then drop >> endS >> handleGetAll
+    else do
+      dup
+      pushInt 1
+      if IsEq
+        then drop >> decodeFromSlice @PublicKey >> endS >> handleGetByKey
+        else do
+          pushInt 0
+          if IsEq
+            then decodeFromSlice @SignMsg >> endS >> handleSignMsg
+            else throw ErrorParsingMsg
+
 -- Msg part
 type SignDict = Dict PublicKey Signature
-data Msg = Msg
+data SignMsg = SignMsg
     { msgNonce      :: Nonce
     , msgSignatures :: SignDict
-    , msgBody       :: Cell MsgBody
+    , msgBody       :: Cell SignMsgBody
     }
 
-data MsgBody = MsgBody
+data SignMsgBody = SignMsgBody
     { mbExpiration :: Timestamp
     , mbMsgObj     :: Cell MessageObject
     }
 
-instance DecodeSlice Msg where
-    type DecodeSliceFields Msg = [Cell MsgBody, SignDict, Nonce]
+instance DecodeSlice SignMsg where
+    type DecodeSliceFields SignMsg = [Cell SignMsgBody, SignDict, Nonce]
     decodeFromSlice = do
         decodeFromSlice @Nonce
         decodeFromSlice @SignDict
-        decodeFromSlice @(Cell MsgBody)
+        decodeFromSlice @(Cell SignMsgBody)
 
-instance DecodeSlice MsgBody where
-    type DecodeSliceFields MsgBody = [Cell MessageObject, Timestamp]
+instance DecodeSlice SignMsgBody where
+    type DecodeSliceFields SignMsgBody = [Cell MessageObject, Timestamp]
     decodeFromSlice = do
         decodeFromSlice @Timestamp
         decodeFromSlice @(Cell MessageObject)
 
 -- Storage part
-type OrderDict =  Dict (Hash MsgBody) Order
+type OrderDict =  Dict (Hash SignMsgBody) Order
 data Storage = Storage
     { sOrders :: OrderDict
     , sNonce  :: Nonce
@@ -66,7 +92,7 @@ data Storage = Storage
     }
 
 data Order = Order
-    { oMsgBody    :: Cell MsgBody
+    { oMsgBody    :: Cell SignMsgBody
     , oSignatures :: DSet Signature
     }
 
@@ -86,14 +112,14 @@ instance EncodeBuilder Storage where
         encodeToBuilder @OrderDict
 
 instance DecodeSlice Order where
-    type DecodeSliceFields Order = [DSet Signature, Cell MsgBody]
+    type DecodeSliceFields Order = [DSet Signature, Cell SignMsgBody]
     decodeFromSlice = do
-        decodeFromSlice @(Cell MsgBody)
+        decodeFromSlice @(Cell SignMsgBody)
         decodeFromSlice @(DSet Signature)
 
 instance EncodeBuilder Order where
     encodeToBuilder = do
-        encodeToBuilder @(Cell MsgBody)
+        encodeToBuilder @(Cell SignMsgBody)
         encodeToBuilder @(DSet Signature)
 
 type instance ToTVM Order = 'SliceT
@@ -102,6 +128,7 @@ data MultiSigError
     = NonceMismatch
     | MsgExpired
     | NoValidSignatures
+    | ErrorParsingMsg
     deriving (Eq, Ord, Show, Generic)
 
 instance Exception MultiSigError
@@ -110,8 +137,10 @@ instance Enum MultiSigError where
     toEnum 32 = NonceMismatch
     toEnum 33 = MsgExpired
     toEnum 34 = NoValidSignatures
+    toEnum 35 = ErrorParsingMsg
     toEnum _ = error "Uknown MultiSigError id"
 
     fromEnum NonceMismatch = 32
     fromEnum MsgExpired = 33
     fromEnum NoValidSignatures = 34
+    fromEnum ErrorParsingMsg = 35

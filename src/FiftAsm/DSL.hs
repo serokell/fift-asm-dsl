@@ -68,6 +68,7 @@ module FiftAsm.DSL
        , ifThenElse
        , Condition (..)
        , while
+       , throw
        , throwIf
        , throwIfNot
 
@@ -349,6 +350,9 @@ ifThenElse = \case
 
 while :: (s :-> Bool & s) -> (s :-> s) -> (s :-> s)
 while (I st) (I body) = I (WHILE st body)
+
+throw :: (Enum e, Exception e) => e -> (s :-> t)
+throw = I . THROW
 
 throwIf :: (Enum e, Exception e) => e -> (Bool & s :-> s)
 throwIf = I . THROWIF
