@@ -120,7 +120,7 @@ instance DecodeSlice Order where
 instance EncodeBuilder Order where
     encodeToBuilder = do
         encodeToBuilder @(Cell SignMsgBody)
-        decodeFromSlice @(Dict PublicKey Signature)
+        encodeToBuilder @(Dict PublicKey Signature)
 
 type instance ToTVM Order = 'SliceT
 

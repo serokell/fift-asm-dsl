@@ -73,7 +73,7 @@ recvSignMsg = do
     swap
     moveOnTop @8
     filterValidSignatures
-    stacktype @[DSet Signature, Hash SignMsgBody, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce]
+    stacktype @[Dict PublicKey Signature, Hash SignMsgBody, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce]
     dup
     dictEmpty
     throwIf NoValidSignatures
@@ -114,43 +114,43 @@ checkMsgExpiration = do
 computeMsgBodyHash:: Cell SignMsgBody & s :-> Hash SignMsgBody & s
 computeMsgBodyHash = cellHash
 
-filterValidSignatures :: SignDict & Hash SignMsgBody & DSet PublicKey & s :-> DSet Signature & s
+filterValidSignatures :: SignDict & Hash SignMsgBody & DSet PublicKey & s :-> Dict PublicKey Signature & s
 filterValidSignatures = do
-    newDict @Signature @()
+    newDict @PublicKey @Signature
     swap
     dictIter $ do
-        stacktype' @[PublicKey, Signature, SignDict, DSet Signature, Hash SignMsgBody, DSet PublicKey]
+        stacktype' @[PublicKey, Signature, SignDict, Dict PublicKey Signature, Hash SignMsgBody, DSet PublicKey]
         dup
         push @6
         dsetGet
         if NotHolds then
             drop >> drop
         else do
-            stacktype' @[PublicKey, Signature, SignDict, DSet Signature, Hash SignMsgBody, DSet PublicKey]
+            stacktype' @[PublicKey, Signature, SignDict, Dict PublicKey Signature, Hash SignMsgBody, DSet PublicKey]
             push @1
-            swap
-            push @5
+            push @1
+            push @6
             roll @3
             chkSignU
             if Holds then do
-                moveOnTop @2
-                dsetSet
+                moveOnTop @3
+                dictSet
                 swap
             else
-                drop
+                drop >> drop
     pop @1
     pop @1
 
 
 extendOrder
-    :: Word32 & DSet Signature & Hash SignMsgBody & Cell SignMsgBody & OrderDict & s
+    :: Word32 & Dict PublicKey Signature & Hash SignMsgBody & Cell SignMsgBody & OrderDict & s
     :-> OrderDict & s
 extendOrder = do
     push @2
     push @5
     dictGet
     if IsJust then do
-        stacktype' @[Order, Word32, DSet Signature]
+        stacktype' @[Order, Word32, Dict PublicKey Signature]
         cast @Order @Slice
         decodeFromSliceFull @Order
         swap
@@ -160,10 +160,10 @@ extendOrder = do
         false -- not new one
         roll @4
         --                                                    v whether new order or not
-        stacktype' @[DSet Signature, DSet Signature, Word32, Bool]
+        stacktype' @[Dict PublicKey Signature, Dict PublicKey Signature, Word32, Bool]
     else do
         swap
-        newDict @Signature @()
+        newDict @PublicKey @Signature
         true -- new one
         roll @4
 
@@ -171,7 +171,7 @@ extendOrder = do
 
     if IsJust then do
         -- when not enough signatures
-        stacktype' @[DSet Signature, Bool, Hash SignMsgBody, Cell SignMsgBody, OrderDict]
+        stacktype' @[Dict PublicKey Signature, Bool, Hash SignMsgBody, Cell SignMsgBody, OrderDict]
         rollRev @4
         encodeToSlice @Order
         cast @Slice @Order
