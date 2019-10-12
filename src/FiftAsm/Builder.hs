@@ -82,7 +82,6 @@ buildInstr (WHILE inv body)
     = "WHILE:<{\n" <> indentF indentation (buildInstr inv)
     <> "}>DO<{\n" <> indentF indentation (buildInstr body)
     <> "}>\n"
-buildInstr (THROW e)    = buildWithInt (fromEnum e) "THROW"
 buildInstr (THROWIF e)    = buildWithInt (fromEnum e) "THROWIF"
 buildInstr (THROWIFNOT e) = buildWithInt (fromEnum e) "THROWIFNOT"
 buildInstr HASHCU   = "HASHCU"
@@ -91,6 +90,9 @@ buildInstr CHKSIGNS = "CHKSIGNS"
 buildInstr CHKSIGNU = "CHKSIGNU"
 buildInstr NOW      = "NOW"
 buildInstr SENDRAWMSG = "SENDRAWMSG"
+buildInstr (THROW e) = buildWithInt (fromEnum e) "THROW"
+buildInstr PAIR      = "PAIR"
+buildInstr UNPAIR    = "UNPAIR"
 
 buildWithInt :: (Num a, Buildable a) => a -> Text -> Builder
 buildWithInt x instr = "" +| x |+ " " +| instr |+ ""

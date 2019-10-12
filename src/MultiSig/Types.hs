@@ -35,26 +35,44 @@ instance EncodeBuilder Nonce where
 
 decodeMsgFromSliceFull
   :: '[] :-> '[]
-  -> '[PublicKey] :-> '[]
+  -> '[Bool, PublicKey] :-> '[]
   -> DecodeSliceFields SignMsg :-> '[]
   -> '[Slice] :-> '[]
 decodeMsgFromSliceFull handleGetAll handleGetByKey handleSignMsg = do
   decodeFromSlice @Word32
   swap
   dup
-  pushInt 2
+  pushInt 3
   if IsEq
-    then drop >> endS >> handleGetAll
+    then do
+      drop
+      endS
+      handleGetAll
     else do
       dup
-      pushInt 1
+      pushInt 2
       if IsEq
-        then drop >> decodeFromSlice @PublicKey >> endS >> handleGetByKey
+        then do
+          drop
+          decodeFromSlice @PublicKey
+          endS
+          true -- signed by pk
+          handleGetByKey
         else do
-          pushInt 0
+          dup
+          pushInt 1
           if IsEq
-            then decodeFromSlice @SignMsg >> endS >> handleSignMsg
-            else throw ErrorParsingMsg
+            then do
+              drop
+              decodeFromSlice @PublicKey
+              endS
+              false -- not signed by pk
+              handleGetByKey
+            else do
+              pushInt 0
+              if IsEq
+                then decodeFromSlice @SignMsg >> endS >> handleSignMsg
+                else throw ErrorParsingMsg
 
 -- Msg part
 type SignDict = Dict PublicKey Signature
@@ -93,7 +111,7 @@ data Storage = Storage
 
 data Order = Order
     { oMsgBody    :: Cell SignMsgBody
-    , oSignatures :: Dict PublicKey Signature
+    , oApproved   :: DSet PublicKey
     }
 
 instance DecodeSlice Storage where
@@ -112,15 +130,15 @@ instance EncodeBuilder Storage where
         encodeToBuilder @OrderDict
 
 instance DecodeSlice Order where
-    type DecodeSliceFields Order = [Dict PublicKey Signature, Cell SignMsgBody]
+    type DecodeSliceFields Order = [DSet PublicKey, Cell SignMsgBody]
     decodeFromSlice = do
         decodeFromSlice @(Cell SignMsgBody)
-        decodeFromSlice @(Dict PublicKey Signature)
+        decodeFromSlice @(DSet PublicKey)
 
 instance EncodeBuilder Order where
     encodeToBuilder = do
         encodeToBuilder @(Cell SignMsgBody)
-        encodeToBuilder @(Dict PublicKey Signature)
+        encodeToBuilder @(DSet PublicKey)
 
 type instance ToTVM Order = 'SliceT
 

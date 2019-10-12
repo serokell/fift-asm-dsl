@@ -15,23 +15,68 @@ recvExternal = decodeMsgFromSliceFull recvGetAllOrders recvGetOrdersByKey recvSi
 
 recvGetAllOrders :: '[] :-> '[]
 recvGetAllOrders = do
-    -- Garbage collection of expired orders
     pushRoot
     comment "Decoding of storage fields"
     decodeFromCell @Storage
     roll @4
     drop >> drop >> drop
-    stacktype' @'[OrderDict]
+    cast @OrderDict @AccumOrderDict
     mkMethodReturnMessage
     sendRawMsg
 
 mkMethodReturnMessage
-  :: '[OrderDict]
+  :: '[AccumOrderDict]
   :-> '[Word32, Cell MessageObject]
 mkMethodReturnMessage = undefined
 
-recvGetOrdersByKey :: '[PublicKey] :-> '[]
-recvGetOrdersByKey = undefined
+data AccumOrderDict
+type instance ToTVM AccumOrderDict = ToTVM OrderDict
+
+recvGetOrdersByKey :: '[Bool, PublicKey] :-> '[]
+recvGetOrdersByKey = do
+    pushRoot
+    comment "Decoding of storage fields"
+    decodeFromCell @Storage
+    roll @4
+    drop >> drop >> drop
+    newDict
+    cast @OrderDict @AccumOrderDict
+    swap
+    dictIter $ do
+      stacktype' @'[DSet PublicKey, Cell SignMsgBody, Hash SignMsgBody, OrderDict, AccumOrderDict, Bool, PublicKey]
+      push @5
+      push @7
+      push @2
+      checkSignMsgBodyBelongsToPk
+      ifElse
+        (do
+          stacktype' @'[DSet PublicKey, Cell SignMsgBody, Hash SignMsgBody, OrderDict, AccumOrderDict]
+          moveOnTop @3
+          moveOnTop @4
+          cast @AccumOrderDict @OrderDict
+          roll @5
+          roll @5
+          stacktype' @'[DSet PublicKey, Cell SignMsgBody, Hash SignMsgBody, {-Accum-}OrderDict, OrderDict]
+          swap
+          dictEncodeSet
+          cast @OrderDict @AccumOrderDict
+          swap
+        )
+        (drop >> drop >> drop)
+    swap
+    drop
+    swap
+    drop
+    mkMethodReturnMessage
+    sendRawMsg
+
+checkSignMsgBodyBelongsToPk
+  :: DSet PublicKey & PublicKey & Bool & s :-> Bool & s
+checkSignMsgBodyBelongsToPk = do
+    dsetGet
+    if IsEq
+      then true
+      else false
 
 recvSignMsg :: DecodeSliceFields SignMsg :-> '[]
 recvSignMsg = do
@@ -73,8 +118,9 @@ recvSignMsg = do
     swap
     moveOnTop @8
     filterValidSignatures
-    stacktype @[Dict PublicKey Signature, Hash SignMsgBody, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce]
+    stacktype @[AccumPkDict, Hash SignMsgBody, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce]
     dup
+    cast @AccumPkDict @(DSet PublicKey)
     dictEmpty
     throwIf NoValidSignatures
 
@@ -114,43 +160,51 @@ checkMsgExpiration = do
 computeMsgBodyHash:: Cell SignMsgBody & s :-> Hash SignMsgBody & s
 computeMsgBodyHash = cellHash
 
-filterValidSignatures :: SignDict & Hash SignMsgBody & DSet PublicKey & s :-> Dict PublicKey Signature & s
+data AccumPkDict
+type instance ToTVM AccumPkDict = ToTVM (DSet PublicKey)
+
+filterValidSignatures :: SignDict & Hash SignMsgBody & DSet PublicKey & s :-> AccumPkDict & s
 filterValidSignatures = do
-    newDict @PublicKey @Signature
+    newDict
+    cast @(DSet PublicKey) @AccumPkDict
     swap
     dictIter $ do
-        stacktype' @[PublicKey, Signature, SignDict, Dict PublicKey Signature, Hash SignMsgBody, DSet PublicKey]
+        stacktype' @[Signature, PublicKey, SignDict, AccumPkDict, Hash SignMsgBody, DSet PublicKey]
+        swap
         dup
         push @6
         dsetGet
         if NotHolds then
             drop >> drop
         else do
-            stacktype' @[PublicKey, Signature, SignDict, Dict PublicKey Signature, Hash SignMsgBody, DSet PublicKey]
-            push @1
-            push @1
-            push @6
+            stacktype' @[PublicKey, Signature, SignDict, AccumPkDict, Hash SignMsgBody, DSet PublicKey]
+            dup
+            roll @3
+            push @5
             roll @3
             chkSignU
+            stacktype' @[Bool, PublicKey, SignDict, AccumPkDict, Hash SignMsgBody, DSet PublicKey]
             if Holds then do
-                moveOnTop @3
-                dictSet
+                moveOnTop @2
+                cast @AccumPkDict @(DSet PublicKey)
+                dsetSet
+                cast @(DSet PublicKey) @AccumPkDict
                 swap
             else
-                drop >> drop
+                drop
     pop @1
     pop @1
 
 
 extendOrder
-    :: Word32 & Dict PublicKey Signature & Hash SignMsgBody & Cell SignMsgBody & OrderDict & s
+    :: Word32 & AccumPkDict & Hash SignMsgBody & Cell SignMsgBody & OrderDict & s
     :-> OrderDict & s
 extendOrder = do
     push @2
     push @5
     dictGet
     if IsJust then do
-        stacktype' @[Order, Word32, Dict PublicKey Signature]
+        stacktype' @[Order, Word32]
         cast @Order @Slice
         decodeFromSliceFull @Order
         swap
@@ -160,24 +214,26 @@ extendOrder = do
         false -- not new one
         roll @4
         --                                                    v whether new order or not
-        stacktype' @[Dict PublicKey Signature, Dict PublicKey Signature, Word32, Bool]
     else do
         swap
-        newDict @PublicKey @Signature
+        newDict
         true -- new one
         roll @4
 
+    swap
+    cast @AccumPkDict @(DSet PublicKey)
+    swap
     dictMerge
 
     if IsJust then do
         -- when not enough signatures
-        stacktype' @[Dict PublicKey Signature, Bool, Hash SignMsgBody, Cell SignMsgBody, OrderDict]
-        rollRev @4
-        encodeToSlice @Order
-        cast @Slice @Order
-        moveOnTop @2
+        stacktype' @[DSet PublicKey, Bool, Hash SignMsgBody, Cell SignMsgBody, OrderDict]
+        roll @5
+        roll @5
         moveOnTop @3
-        dictSet @(Hash SignMsgBody) @Order
+        moveOnTop @2
+        stacktype' @[Cell SignMsgBody, DSet PublicKey, Hash SignMsgBody, OrderDict, Bool]
+        dictEncodeSet
         swap
         ifElse addToTimestampSet ignore
     else do

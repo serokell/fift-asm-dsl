@@ -7,6 +7,7 @@ module FiftAsm.DSL
        , type (&)
        , (>>)
        , ToTVM
+       , ToTVMs
 
        -- Domain specific types
        , Signature
@@ -80,6 +81,9 @@ module FiftAsm.DSL
        , cast
        , ignore
        , comment
+
+       , pair
+       , unpair
        ) where
 
 import Prelude
@@ -140,6 +144,7 @@ type instance ToTVM Natural   = 'IntT
 type instance ToTVM (Cell a)  = 'CellT
 type instance ToTVM Builder   = 'BuilderT
 type instance ToTVM ()        = 'SliceT
+type instance ToTVM ((,) a b) = 'TupleT '[ToTVM a, ToTVM b]
 type instance ToTVM (Mb xs)   = 'MaybeT (ToTVMs xs)
 
 type family IsUnsignedTF a :: Bool where
@@ -184,6 +189,12 @@ push = I (PUSH (Proxy @i))
 
 pushInt :: (Integral a, ToTVM a ~ 'IntT) => a -> (s :-> a & s)
 pushInt = I . PUSHINT . toInteger
+
+unpair :: (a, b) & s :-> a & b & s
+unpair = I UNPAIR
+
+pair :: a & b & s :-> (a, b) & s
+pair = I PAIR
 
 -- Unit represents empty cell
 unit :: s :-> () & s
@@ -232,12 +243,13 @@ moveOnTop
 moveOnTop = rollRev @(i + 1)
 
 reversePrefix
-    :: forall (n :: Nat) s .
+    :: forall (n :: Nat) s s' .
     ( ProhibitMaybes (Take n (ToTVMs s)), 2 <= n
-    , Reverse (Take n (ToTVMs s)) ~ ToTVMs (Reverse (Take n s))
     , KnownNat n
+    , s' ~ (Reverse (Take n s) ++ Drop n s)
+    , (Reverse (Take n (ToTVMs s)) ++ Drop n (ToTVMs s)) ~ ToTVMs s'
     )
-    => s :-> Reverse (Take n s)
+    => s :-> s'
 reversePrefix = I (REVERSE_PREFIX (Proxy @n))
 
 pushRoot :: forall a s . s :-> (Cell a & s)
