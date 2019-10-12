@@ -93,7 +93,7 @@ data Storage = Storage
 
 data Order = Order
     { oMsgBody    :: Cell SignMsgBody
-    , oSignatures :: DSet Signature
+    , oSignatures :: Dict PublicKey Signature
     }
 
 instance DecodeSlice Storage where
@@ -112,15 +112,15 @@ instance EncodeBuilder Storage where
         encodeToBuilder @OrderDict
 
 instance DecodeSlice Order where
-    type DecodeSliceFields Order = [DSet Signature, Cell SignMsgBody]
+    type DecodeSliceFields Order = [Dict PublicKey Signature, Cell SignMsgBody]
     decodeFromSlice = do
         decodeFromSlice @(Cell SignMsgBody)
-        decodeFromSlice @(DSet Signature)
+        decodeFromSlice @(Dict PublicKey Signature)
 
 instance EncodeBuilder Order where
     encodeToBuilder = do
         encodeToBuilder @(Cell SignMsgBody)
-        encodeToBuilder @(DSet Signature)
+        decodeFromSlice @(Dict PublicKey Signature)
 
 type instance ToTVM Order = 'SliceT
 

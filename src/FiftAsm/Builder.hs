@@ -82,6 +82,7 @@ buildInstr (WHILE inv body)
     = "WHILE:<{\n" <> indentF indentation (buildInstr inv)
     <> "}>DO<{\n" <> indentF indentation (buildInstr body)
     <> "}>\n"
+buildInstr (THROW e)    = buildWithInt (fromEnum e) "THROW"
 buildInstr (THROWIF e)    = buildWithInt (fromEnum e) "THROWIF"
 buildInstr (THROWIFNOT e) = buildWithInt (fromEnum e) "THROWIFNOT"
 buildInstr HASHCU   = "HASHCU"
