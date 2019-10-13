@@ -4,6 +4,9 @@
 module MultiSig.Impl
        ( recvExternal
        , recvInternal
+
+       , getAllOrders
+       , getOrdersByKey
        ) where
 
 import Prelude
@@ -16,79 +19,11 @@ recvInternal :: '[Slice] :-> '[]
 recvInternal = drop
 
 recvExternal :: '[Slice] :-> '[]
-recvExternal = decodeMsgFromSliceFull recvGetAllOrders recvGetOrdersByKey recvSignMsg
+recvExternal = do
+    decodeFromSlice @SignMsg
+    endS
+    recvSignMsg
 
-recvGetAllOrders :: '[] :-> '[]
-recvGetAllOrders = viaSubroutine @'[] @'[] "recvGetAllOrders" $ do
-    comment "Get all orders"
-    pushRoot
-    decodeFromCell @Storage
-    roll @4
-    drop >> drop >> drop
-    cast @OrderDict @AccumOrderDict
-    mkMethodReturnMessage
-    sendRawMsg
-
-mkMethodReturnMessage
-  :: '[AccumOrderDict]
-  :-> '[Word32, Cell MessageObject]
-mkMethodReturnMessage =
-  viaSubroutine @'[AccumOrderDict]
-                @'[Word32, Cell MessageObject] "mkMethodReturnMessage" $ do
-    cast @AccumOrderDict @OrderDict
-    -- TODO replace with actual serialization
-    encodeToCell @OrderDict
-    cast @(Cell OrderDict) @(Cell MessageObject)
-    pushInt 0
-
-data AccumOrderDict
-type instance ToTVM AccumOrderDict = ToTVM OrderDict
-
-recvGetOrdersByKey :: '[Bool, PublicKey] :-> '[]
-recvGetOrdersByKey = viaSubroutine @'[Bool, PublicKey] @'[] "recvGetOrdersByKey" $ do
-    comment "Get orders by key"
-    pushRoot
-    decodeFromCell @Storage
-    roll @4
-    drop >> drop >> drop
-    newDict
-    cast @OrderDict @AccumOrderDict
-    swap
-    dictIter $ do
-      stacktype' @'[DSet PublicKey, Cell SignMsgBody, Hash SignMsgBody, OrderDict, AccumOrderDict, Bool, PublicKey]
-      push @5
-      push @7
-      push @2
-      checkSignMsgBodyBelongsToPk
-      ifElse
-        (do
-          stacktype' @'[DSet PublicKey, Cell SignMsgBody, Hash SignMsgBody, OrderDict, AccumOrderDict]
-          moveOnTop @3
-          moveOnTop @4
-          cast @AccumOrderDict @OrderDict
-          roll @5
-          roll @5
-          stacktype' @'[DSet PublicKey, Cell SignMsgBody, Hash SignMsgBody, {-Accum-}OrderDict, OrderDict]
-          swap
-          dictEncodeSet
-          cast @OrderDict @AccumOrderDict
-          swap
-        )
-        (drop >> drop >> drop)
-    swap
-    drop
-    swap
-    drop
-    mkMethodReturnMessage
-    sendRawMsg
-
-checkSignMsgBodyBelongsToPk
-  :: DSet PublicKey & PublicKey & Bool & s :-> Bool & s
-checkSignMsgBodyBelongsToPk = do
-    dsetGet
-    if IsEq
-      then true
-      else false
 
 recvSignMsg :: DecodeSliceFields SignMsg :-> '[]
 recvSignMsg = viaSubroutine @(DecodeSliceFields SignMsg) @'[] "recvSignMsg" $ do
@@ -267,3 +202,67 @@ addToTimestampSet = ignore
 -- TODO
 removeFromTimestampSet :: x & s :-> x & s
 removeFromTimestampSet = ignore
+
+
+
+--
+-- Getter methods
+--
+
+data AccumOrderDict
+type instance ToTVM AccumOrderDict = ToTVM OrderDict
+
+
+getAllOrders :: '[] :-> '[AccumOrderDict]
+getAllOrders = do
+    comment "Get all orders"
+    pushRoot
+    decodeFromCell @Storage
+    roll @4
+    drop >> drop >> drop
+    cast @OrderDict @AccumOrderDict
+
+
+getOrdersByKey :: '[Bool, PublicKey] :-> '[AccumOrderDict]
+getOrdersByKey = do
+    comment "Get orders by key"
+    pushRoot
+    decodeFromCell @Storage
+    roll @4
+    drop >> drop >> drop
+    newDict
+    cast @OrderDict @AccumOrderDict
+    swap
+    dictIter $ do
+      stacktype' @'[DSet PublicKey, Cell SignMsgBody, Hash SignMsgBody, OrderDict, AccumOrderDict, Bool, PublicKey]
+      push @5
+      push @7
+      push @2
+      checkSignMsgBodyBelongsToPk
+      ifElse
+        (do
+          stacktype' @'[DSet PublicKey, Cell SignMsgBody, Hash SignMsgBody, OrderDict, AccumOrderDict]
+          moveOnTop @3
+          moveOnTop @4
+          cast @AccumOrderDict @OrderDict
+          roll @5
+          roll @5
+          stacktype' @'[DSet PublicKey, Cell SignMsgBody, Hash SignMsgBody, {-Accum-}OrderDict, OrderDict]
+          swap
+          dictEncodeSet
+          cast @OrderDict @AccumOrderDict
+          swap
+        )
+        (drop >> drop >> drop)
+    swap
+    drop
+    swap
+    drop
+
+checkSignMsgBodyBelongsToPk
+  :: DSet PublicKey & PublicKey & Bool & s :-> Bool & s
+checkSignMsgBodyBelongsToPk = do
+    dsetGet
+    if IsEq
+      then true
+      else false

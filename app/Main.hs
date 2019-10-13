@@ -13,5 +13,6 @@ main = putText $ pretty $ declProgram procedures methods
       , ("recv_internal", decl recvInternal)
       ]
     methods =
-      [
+      [ ("allOrders", declMethod getAllOrders)
+      , ("ordersByKey", declMethod getOrdersByKey)
       ]
