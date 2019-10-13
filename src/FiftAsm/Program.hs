@@ -3,6 +3,7 @@
 module FiftAsm.Program
     ( UntypedDeclaration
     , decl
+    , declMethod
 
     , Program (..)
     , declProgram
@@ -27,6 +28,9 @@ data UntypedDeclaration
 decl :: inp :-> out -> UntypedDeclaration
 decl = UntypedDeclaration
 
+declMethod :: inp :-> out -> (Maybe Word16, UntypedDeclaration)
+declMethod = (Nothing,) . UntypedDeclaration
+
 data Program = Program
     { pProcedures :: Map String UntypedDeclaration
     , pMethods :: Map String (Maybe Word16, UntypedDeclaration)
@@ -48,16 +52,16 @@ data NamedDeclaration = NamedDeclaration String UntypedDeclaration
 
 instance Buildable NamedDeclaration where
     build (NamedDeclaration name (UntypedDeclaration (I instr rs))) =
-        foldMap declProc (M.keys rs) <>
+        foldMap declareProc (M.keys rs) <>
         buildProc name (Subroutine instr) <>
         M.foldMapWithKey buildProc rs
 
-declProc :: String -> Builder
-declProc name =
+declareProc :: String -> Builder
+declareProc name =
     "DECLPROC " <> build name <> "\n"
 
-declMethod :: String -> Maybe Word16 -> Builder
-declMethod name mId =
+declareMethod :: String -> Maybe Word16 -> Builder
+declareMethod name mId =
     build methodId <> " DECLMETHOD " <> build name <> "\n"
   where
     methodId :: Int
@@ -73,7 +77,7 @@ instance Buildable Program where
     build (Program { pProcedures, pMethods }) =
       "PROGRAM{\n" <>
       M.foldMapWithKey
-        (\n p -> declProc n <> build (NamedDeclaration n p)) pProcedures <>
+        (\n p -> declareProc n <> build (NamedDeclaration n p)) pProcedures <>
       M.foldMapWithKey
-        (\n (i, m) -> declMethod n i <> build (NamedDeclaration n m)) pMethods <>
+        (\n (i, m) -> declareMethod n i <> build (NamedDeclaration n m)) pMethods <>
       "}END>c"
