@@ -8,6 +8,8 @@ module FiftAsm.Program
     , declProgram
     ) where
 
+import Data.Bits ((.|.))
+import Data.ByteString.Char8 (pack)
 import Data.Map (Map)
 import Data.Word (Word16)
 import Fmt
@@ -16,7 +18,7 @@ import qualified Data.Map as M
 
 import FiftAsm.Builder (buildInstr, indentation)
 import FiftAsm.DSL ((:->) (..), Subroutine (..))
---import Util
+import Util.Crc16 (crc16)
 
 
 data UntypedDeclaration
@@ -56,10 +58,11 @@ declProc name =
 
 declMethod :: String -> Maybe Word16 -> Builder
 declMethod name mId =
-    build i <> "DECLMETHOD " <> build name <> "\n"
+    build methodId <> " DECLMETHOD " <> build name <> "\n"
   where
-    i = fromMaybe autoId mId
-    autoId = error "Not implemented"  -- TODO
+    methodId :: Int
+    methodId = maybe autoId fromIntegral mId
+    autoId = fromIntegral (crc16 . pack $ name) .|. 0x10000
 
 buildProc :: String -> Subroutine -> Builder
 buildProc name (Subroutine instr) =
