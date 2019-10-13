@@ -342,7 +342,7 @@ data Condition st arg argl argr where
     IsEq :: ToTVM a ~ 'IntT => Condition s (a ': a ': s) s s
     -- IsNeq :: IfCmpXConstraints a Neq => Condition s (a ': a ': s) s s
     -- IsLt :: IfCmpXConstraints a Lt => Condition s (a ': a ': s) s s
-    -- IsGt :: IfCmpXConstraints a Gt => Condition s (a ': a ': s) s s
+    IsGt :: ToTVM a ~ 'IntT => Condition s (a ': a ': s) s s
     IsLe :: ToTVM a ~ 'IntT => Condition s (a ': a ': s) s s
     IsGe :: ToTVM a ~ 'IntT=> Condition s (a ': a ': s) s s
 
@@ -359,6 +359,7 @@ ifThenElse = \case
     IsEq -> \l r -> equalInt >> ifElse l r
     IsLe -> \l r -> leqInt >> ifElse l r
     IsGe -> \l r -> geqInt >> ifElse l r
+    IsGt -> \l r -> greaterInt >> ifElse l r
 
 while :: (s :-> Bool & s) -> (s :-> s) -> (s :-> s)
 while (I st) (I body) = I (WHILE st body)

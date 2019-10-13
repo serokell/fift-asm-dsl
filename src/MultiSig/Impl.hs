@@ -15,8 +15,8 @@ recvExternal = decodeMsgFromSliceFull recvGetAllOrders recvGetOrdersByKey recvSi
 
 recvGetAllOrders :: '[] :-> '[]
 recvGetAllOrders = do
+    comment "Get all orders"
     pushRoot
-    comment "Decoding of storage fields"
     decodeFromCell @Storage
     roll @4
     drop >> drop >> drop
@@ -27,15 +27,20 @@ recvGetAllOrders = do
 mkMethodReturnMessage
   :: '[AccumOrderDict]
   :-> '[Word32, Cell MessageObject]
-mkMethodReturnMessage = undefined
+mkMethodReturnMessage = do
+    cast @AccumOrderDict @OrderDict
+    -- TODO replace with actual serialization
+    encodeToCell @OrderDict
+    cast @(Cell OrderDict) @(Cell MessageObject)
+    pushInt 0
 
 data AccumOrderDict
 type instance ToTVM AccumOrderDict = ToTVM OrderDict
 
 recvGetOrdersByKey :: '[Bool, PublicKey] :-> '[]
 recvGetOrdersByKey = do
+    comment "Get orders by key"
     pushRoot
-    comment "Decoding of storage fields"
     decodeFromCell @Storage
     roll @4
     drop >> drop >> drop
@@ -80,9 +85,9 @@ checkSignMsgBodyBelongsToPk = do
 
 recvSignMsg :: DecodeSliceFields SignMsg :-> '[]
 recvSignMsg = do
+    comment "Handle sign message"
     -- Garbage collection of expired orders
     pushRoot
-    comment "Decoding of storage fields"
     decodeFromCell @Storage
     -- TODO store garbage collected OrderDict regardless
     -- of message processing

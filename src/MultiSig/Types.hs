@@ -43,36 +43,34 @@ decodeMsgFromSliceFull handleGetAll handleGetByKey handleSignMsg = do
   swap
   dup
   pushInt 3
-  if IsEq
+  if IsGt
+    then throw ErrorParsingMsg
+    else ignore
+  stacktype @'[Word32, Slice]
+  dup
+  pushInt 2
+  if IsGt
     then do
       drop
       endS
       handleGetAll
     else do
       dup
-      pushInt 2
-      if IsEq
+      pushInt 0
+      if IsGt
         then do
-          drop
+          pushInt 1
+          equalInt
+          swap
           decodeFromSlice @PublicKey
           endS
-          true -- signed by pk
+          swap
           handleGetByKey
         else do
-          dup
-          pushInt 1
-          if IsEq
-            then do
-              drop
-              decodeFromSlice @PublicKey
-              endS
-              false -- not signed by pk
-              handleGetByKey
-            else do
-              pushInt 0
-              if IsEq
-                then decodeFromSlice @SignMsg >> endS >> handleSignMsg
-                else throw ErrorParsingMsg
+          drop
+          decodeFromSlice @SignMsg
+          endS
+          handleSignMsg
 
 -- Msg part
 type SignDict = Dict PublicKey Signature
