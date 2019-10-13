@@ -1,4 +1,5 @@
-.stack-work/
-fift-asm-dsl.cabal
+/.stack-work/
+/stack.yaml.lock
+/fift-asm-dsl.cabal
 *~
 .DS_Store
