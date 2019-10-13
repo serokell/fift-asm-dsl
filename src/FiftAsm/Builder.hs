@@ -15,12 +15,17 @@ indentation = 2
 
 instance Buildable (AsProgram inp out) where
     build (AsProgram (I instr rs)) =
-        M.foldrWithKey (\a b -> (<>) $ buildSubroutine a b) "" rs <>
+        foldMap declSubroutine (M.keys rs) <>
+        M.foldMapWithKey buildSubroutine rs <>
         "\nmain PROC:<{\n" <> indentF indentation (buildInstr instr) <> "}>"
+
+declSubroutine :: String -> Builder
+declSubroutine name =
+    "DECLPROC " <> build name <> "\n"
 
 buildSubroutine :: String -> Subroutine -> Builder
 buildSubroutine name (Subroutine instr) =
-    build name <> " <{\n" <> indentF indentation (buildInstr instr) <> "}>s PROC\n"
+    build name <> " PROC:<{\n" <> indentF indentation (buildInstr instr) <> "}>\n"
 
 instance Buildable Natural where
     build = build @Integer . toInteger
