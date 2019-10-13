@@ -26,7 +26,7 @@ newtype Nonce = Nonce Word32
 type instance ToTVM Nonce = 'IntT
 
 instance DecodeSlice Nonce where
-    decodeFromSlice = ld32Unsigned
+    decodeFromSliceImpl = ld32Unsigned
 
 instance EncodeBuilder Nonce where
     encodeToBuilder = st32Unsigned
@@ -87,16 +87,16 @@ data SignMsgBody = SignMsgBody
 
 instance DecodeSlice SignMsg where
     type DecodeSliceFields SignMsg = [Cell SignMsgBody, SignDict, Nonce]
-    decodeFromSlice = do
-        decodeFromSlice @Nonce
-        decodeFromSlice @SignDict
-        decodeFromSlice @(Cell SignMsgBody)
+    decodeFromSliceImpl = do
+        decodeFromSliceImpl @Nonce
+        decodeFromSliceImpl @SignDict
+        decodeFromSliceImpl @(Cell SignMsgBody)
 
 instance DecodeSlice SignMsgBody where
     type DecodeSliceFields SignMsgBody = [Cell MessageObject, Timestamp]
-    decodeFromSlice = do
-        decodeFromSlice @Timestamp
-        decodeFromSlice @(Cell MessageObject)
+    decodeFromSliceImpl = do
+        decodeFromSliceImpl @Timestamp
+        decodeFromSliceImpl @(Cell MessageObject)
 
 -- Storage part
 type OrderDict =  Dict (Hash SignMsgBody) Order
@@ -114,11 +114,11 @@ data Order = Order
 
 instance DecodeSlice Storage where
     type DecodeSliceFields Storage = [OrderDict, DSet PublicKey, Word32, Nonce]
-    decodeFromSlice = do
-        decodeFromSlice @Nonce
-        decodeFromSlice @Word32
-        decodeFromSlice @(DSet PublicKey)
-        decodeFromSlice @OrderDict
+    decodeFromSliceImpl = do
+        decodeFromSliceImpl @Nonce
+        decodeFromSliceImpl @Word32
+        decodeFromSliceImpl @(DSet PublicKey)
+        decodeFromSliceImpl @OrderDict
 
 instance EncodeBuilder Storage where
     encodeToBuilder = do
@@ -129,9 +129,9 @@ instance EncodeBuilder Storage where
 
 instance DecodeSlice Order where
     type DecodeSliceFields Order = [DSet PublicKey, Cell SignMsgBody]
-    decodeFromSlice = do
-        decodeFromSlice @(Cell SignMsgBody)
-        decodeFromSlice @(DSet PublicKey)
+    decodeFromSliceImpl = do
+        decodeFromSliceImpl @(Cell SignMsgBody)
+        decodeFromSliceImpl @(DSet PublicKey)
 
 instance EncodeBuilder Order where
     encodeToBuilder = do

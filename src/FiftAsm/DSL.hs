@@ -8,6 +8,10 @@ module FiftAsm.DSL
        , (>>)
        , ToTVM
        , ToTVMs
+       , mkI
+
+       , Subroutine (..)
+       , viaSubroutine
 
        -- Domain specific types
        , Signature
@@ -90,6 +94,8 @@ import Prelude
 
 import qualified Data.Kind as Kind
 import GHC.TypeLits (type (+), type (<=))
+import Data.Typeable (typeRep, typeRepFingerprint)
+import qualified Data.Map as M
 
 import FiftAsm.Instr
 import FiftAsm.Types
@@ -101,17 +107,37 @@ type family ToTVMs xs where
     ToTVMs '[] = '[]
     ToTVMs (x ': xs) = ToTVM x ': ToTVMs xs
 
+data Subroutine where
+  Subroutine :: Instr inp out -> Subroutine
+
+deriving instance Show Subroutine
+
 -- | Alias for instruction which hides inner types representation via 'T'.
-newtype (inp :: [Kind.Type]) :-> (out :: [Kind.Type]) =
-    I { unI :: Instr (ToTVMs inp) (ToTVMs out) }
+data (inp :: [Kind.Type]) :-> (out :: [Kind.Type]) =
+    I { instr :: Instr (ToTVMs inp) (ToTVMs out), subRoutines :: Map String Subroutine }
     deriving (Show)
 infixr 1 :->
 
+viaSubroutine
+    :: forall inp out s.
+      (Typeable inp, Typeable out)
+    => String
+    -> inp :-> out
+    -> (inp ++ s) :-> (out ++ s)
+viaSubroutine funPrefix (I action rs) =
+    I (CALL funName) (M.insert funName (Subroutine action) rs)
+  where
+    tr p = take 6 $ show (typeRepFingerprint (typeRep p))
+    funName = funPrefix <> "_" <> tr (Proxy @inp) <> "_" <> tr (Proxy @out)
+
 (>>) :: (a :-> b) -> (b :-> c) -> (a :-> c)
-(>>) (I l) (I r) = I (l `Seq` r)
+(>>) (I l lR) (I r rR) = I (l `Seq` r) (lR <> rR)
+
+mkI :: Instr (ToTVMs inp) (ToTVMs out) -> inp :-> out
+mkI = flip I mempty
 
 type (&) (a :: Kind.Type) (b :: [Kind.Type]) = a ': b
-infixr 2 &
+infixr 5 &
 
 -- Domain specific types
 data Signature
@@ -171,13 +197,13 @@ bitSize = fromIntegral $ natVal @(BitSize k) @Proxy Proxy
 -- Instructions over :->
 
 drop :: ProhibitMaybe (ToTVM a) => a & s :-> s
-drop = I DROP
+drop = mkI DROP
 
 dup :: forall a s . ProhibitMaybe (ToTVM a) => a & s :-> a & a & s
-dup = I (PUSH (Proxy @0))
+dup = mkI (PUSH (Proxy @0))
 
 swap :: ProhibitMaybes '[ToTVM a, ToTVM b] => a & b & s :-> b & a & s
-swap = I SWAP
+swap = mkI SWAP
 
 push :: forall (i :: Nat) s .
     ( ProhibitMaybes (Take (i + 1) (ToTVMs s))
@@ -185,26 +211,26 @@ push :: forall (i :: Nat) s .
     , KnownNat i
     )
     => s :-> PushTF i s
-push = I (PUSH (Proxy @i))
+push = mkI (PUSH (Proxy @i))
 
 pushInt :: (Integral a, ToTVM a ~ 'IntT) => a -> (s :-> a & s)
-pushInt = I . PUSHINT . toInteger
+pushInt = mkI . PUSHINT . toInteger
 
 unpair :: (a, b) & s :-> a & b & s
-unpair = I UNPAIR
+unpair = mkI UNPAIR
 
 pair :: a & b & s :-> (a, b) & s
-pair = I PAIR
+pair = mkI PAIR
 
 -- Unit represents empty cell
 unit :: s :-> () & s
-unit = I $ NEWC `Seq` ENDC `Seq` CTOS
+unit = mkI $ NEWC `Seq` ENDC `Seq` CTOS
 
 true :: s :-> Bool & s
-true = I TRUE
+true = mkI TRUE
 
 false :: s :-> Bool & s
-false = I FALSE
+false = mkI FALSE
 
 pop :: forall (i :: Nat) s .
     ( ProhibitMaybes (Take (i + 1) (ToTVMs s))
@@ -212,7 +238,7 @@ pop :: forall (i :: Nat) s .
     , KnownNat i
     )
     => s :-> PopTF i s
-pop = I (POP (Proxy @i))
+pop = mkI (POP (Proxy @i))
 
 rollRev
     :: forall (n :: Nat) s .
@@ -221,7 +247,7 @@ rollRev
     , KnownNat n
     )
     => s :-> RollRevTF n s
-rollRev = I (ROLLREV (Proxy @n))
+rollRev = mkI (ROLLREV (Proxy @n))
 
 roll
     :: forall (n :: Nat) s .
@@ -230,7 +256,7 @@ roll
     , KnownNat n
     )
     => s :-> RollTF n s
-roll = I (ROLL (Proxy @n))
+roll = mkI (ROLL (Proxy @n))
 
 -- equal to ROLLREV (i + 1)
 moveOnTop
@@ -250,86 +276,86 @@ reversePrefix
     , (Reverse (Take n (ToTVMs s)) ++ Drop n (ToTVMs s)) ~ ToTVMs s'
     )
     => s :-> s'
-reversePrefix = I (REVERSE_PREFIX (Proxy @n))
+reversePrefix = mkI (REVERSE_PREFIX (Proxy @n))
 
 pushRoot :: forall a s . s :-> (Cell a & s)
-pushRoot = I PUSHROOT
+pushRoot = mkI PUSHROOT
 
 popRoot :: forall a s . (Cell a & s) :-> s
-popRoot = I POPROOT
+popRoot = mkI POPROOT
 
 ldSliceX :: forall a s . ToTVM a ~ 'SliceT => Bits & Slice & s :-> Slice & a & s
-ldSliceX = I LDSLICEX
+ldSliceX = mkI LDSLICEX
 
 stSlice :: forall a s . ToTVM a ~ 'SliceT => Builder & a & s :-> Builder & s
-stSlice = I STSLICE
+stSlice = mkI STSLICE
 
 ld32Unsigned :: forall a s . ToTVM a ~ 'IntT => Slice & s :-> Slice & a & s
-ld32Unsigned = I (LDU 31)
+ld32Unsigned = mkI (LDU 31)
 
 st32Unsigned :: forall a s . ToTVM a ~ 'IntT => Builder & a & s :-> Builder & s
-st32Unsigned = I (STU 31)
+st32Unsigned = mkI (STU 31)
 
 endS :: Slice & s :-> s
-endS = I ENDS
+endS = mkI ENDS
 
 cToS :: forall a s . Cell a & s :-> Slice & s
-cToS = I CTOS
+cToS = mkI CTOS
 
 inc :: ToTVM a ~ 'IntT => a & s :-> a & s
-inc = I INC
+inc = mkI INC
 
 equalInt :: ToTVM a ~ 'IntT => a & a & s :-> Bool & s
-equalInt = I EQUAL
+equalInt = mkI EQUAL
 
 geqInt :: ToTVM a ~ 'IntT => a & a & s :-> Bool & s
-geqInt = I GEQ
+geqInt = mkI GEQ
 
 greaterInt :: ToTVM a ~ 'IntT => a & a & s :-> Bool & s
-greaterInt = I GREATER
+greaterInt = mkI GREATER
 
 leqInt :: ToTVM a ~ 'IntT => a & a & s :-> Bool & s
-leqInt = I LEQ
+leqInt = mkI LEQ
 
 dataHash :: forall a x s . ToTVM x ~ 'SliceT => x & s :-> Hash a & s
-dataHash = I SHA256U
+dataHash = mkI SHA256U
 
 cellHash :: Cell a & s :-> Hash a & s
-cellHash = I HASHCU
+cellHash = mkI HASHCU
 
 chkSignS :: PublicKey & Signature & Slice & s :-> Bool & s
-chkSignS = I CHKSIGNS
+chkSignS = mkI CHKSIGNS
 
 chkSignU :: PublicKey & Signature & Hash a & s :-> Bool & s
-chkSignU = I CHKSIGNU
+chkSignU = mkI CHKSIGNU
 
 -- if statements
 ifJust
     :: forall a s t . (ToTVMs a ++ ToTVMs s ~ ToTVMs (a ++ s))
     => (a ++ s :-> t) -> (s :-> t) -> (Mb a & s :-> t)
-ifJust (I t) (I f) = I (IF_JUST t f)
+ifJust (I t tR) (I f fR) = I (IF_JUST t f) (tR <> fR)
 
 ifNothing
     :: forall a s t . (ToTVMs a ++ ToTVMs s ~ ToTVMs (a ++ s))
     => (s :-> t) -> (a ++ s :-> t)  -> (Mb a & s :-> t)
-ifNothing (I f) (I t) = I (IF_JUST t f)
+ifNothing (I f fR) (I t tR) = I (IF_JUST t f) (tR <> fR)
 
 fmapMaybe
     :: forall a b s .
     ( ToTVMs a ++ ToTVMs s ~ ToTVMs (a ++ s)
     , ToTVMs b ++ ToTVMs s ~ ToTVMs (b ++ s))
     => (a ++ s :-> b ++ s) -> (Mb a & s :-> Mb b & s)
-fmapMaybe (I f) = I (FMAP_MAYBE f)
+fmapMaybe (I f r) = I (FMAP_MAYBE f) r
 
 just :: forall a s . ToTVMs a ++ ToTVMs s ~ ToTVMs (a ++ s)
      => a ++ s :-> Mb a & s
-just = I JUST
+just = mkI JUST
 
 nothing :: forall a s . s :-> Mb a & s
-nothing = I NOTHING
+nothing = mkI NOTHING
 
 ifElse  :: (s :-> t) -> (s :-> t)  -> (Bool & s :-> t)
-ifElse (I t) (I f) = I (IFELSE t f)
+ifElse (I t tR) (I f fR) = I (IFELSE t f) (tR <> fR)
 
 -- | Predicate for @if ... then .. else ...@ construction,
 -- defines a kind of operation applied to the top elements of the current stack.
@@ -362,36 +388,36 @@ ifThenElse = \case
     IsGt -> \l r -> greaterInt >> ifElse l r
 
 while :: (s :-> Bool & s) -> (s :-> s) -> (s :-> s)
-while (I st) (I body) = I (WHILE st body)
+while (I st stR) (I body bodyR) = I (WHILE st body) (stR <> bodyR)
 
 throw :: (Enum e, Exception e) => e -> (s :-> t)
-throw = I . THROW
+throw = mkI . THROW
 
 throwIf :: (Enum e, Exception e) => e -> (Bool & s :-> s)
-throwIf = I . THROWIF
+throwIf = mkI . THROWIF
 
 throwIfNot :: (Enum e, Exception e) => e -> (Bool & s :-> s)
-throwIfNot = I . THROWIFNOT
+throwIfNot = mkI . THROWIFNOT
 
 -- Application specific instructions
 now :: s :-> Timestamp & s
-now = I NOW
+now = mkI NOW
 
 sendRawMsg :: Word32 & Cell MessageObject & s :-> s
-sendRawMsg = I SENDRAWMSG
+sendRawMsg = mkI SENDRAWMSG
 
 -- Auxiliary DSL instructions
 stacktype :: forall s . s :-> s
-stacktype = I Ignore
+stacktype = mkI Ignore
 
 stacktype' :: forall a s . (a ++ s) :-> (a ++ s)
-stacktype' = I Ignore
+stacktype' = mkI Ignore
 
 cast :: forall a b s . a & s :-> b & s
-cast = I Ignore
+cast = mkI Ignore
 
 ignore :: forall a s . a & s :-> a & s
-ignore = I Ignore
+ignore = mkI Ignore
 
 comment :: Text -> a :-> a
-comment = I . Comment
+comment = mkI . Comment

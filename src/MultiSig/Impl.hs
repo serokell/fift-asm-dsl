@@ -14,7 +14,7 @@ recvExternal :: '[Slice] :-> '[]
 recvExternal = decodeMsgFromSliceFull recvGetAllOrders recvGetOrdersByKey recvSignMsg
 
 recvGetAllOrders :: '[] :-> '[]
-recvGetAllOrders = do
+recvGetAllOrders = viaSubroutine @'[] @'[] "recvGetAllOrders" $ do
     comment "Get all orders"
     pushRoot
     decodeFromCell @Storage
@@ -27,7 +27,9 @@ recvGetAllOrders = do
 mkMethodReturnMessage
   :: '[AccumOrderDict]
   :-> '[Word32, Cell MessageObject]
-mkMethodReturnMessage = do
+mkMethodReturnMessage =
+  viaSubroutine @'[AccumOrderDict]
+                @'[Word32, Cell MessageObject] "mkMethodReturnMessage" $ do
     cast @AccumOrderDict @OrderDict
     -- TODO replace with actual serialization
     encodeToCell @OrderDict
@@ -38,7 +40,7 @@ data AccumOrderDict
 type instance ToTVM AccumOrderDict = ToTVM OrderDict
 
 recvGetOrdersByKey :: '[Bool, PublicKey] :-> '[]
-recvGetOrdersByKey = do
+recvGetOrdersByKey = viaSubroutine @'[Bool, PublicKey] @'[] "recvGetOrdersByKey" $ do
     comment "Get orders by key"
     pushRoot
     decodeFromCell @Storage
@@ -84,7 +86,7 @@ checkSignMsgBodyBelongsToPk = do
       else false
 
 recvSignMsg :: DecodeSliceFields SignMsg :-> '[]
-recvSignMsg = do
+recvSignMsg = viaSubroutine @(DecodeSliceFields SignMsg) @'[] "recvSignMsg" $ do
     comment "Handle sign message"
     -- Garbage collection of expired orders
     pushRoot

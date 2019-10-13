@@ -4,6 +4,7 @@
 
 module FiftAsm.Cell
        ( DecodeSlice (..)
+       , decodeFromSlice
        , decodeFromSliceFull
        , decodeFromCell
        , decodeFromSliceUnsafe
@@ -16,6 +17,7 @@ module FiftAsm.Cell
 import Prelude
 import Data.Vinyl.TypeLevel (type (++))
 import qualified Data.Kind as Kind
+import Data.Typeable (Typeable, typeRep)
 
 import FiftAsm.DSL
 import FiftAsm.Instr
@@ -25,43 +27,80 @@ import Util
 class DecodeSlice (a :: Kind.Type) where
     type DecodeSliceFields a :: [Kind.Type]
     type instance DecodeSliceFields a = '[a]
-    decodeFromSlice :: (Slice & s) :-> (Slice & (DecodeSliceFields a ++ s))
+    decodeFromSliceImpl :: (Slice & s) :-> (Slice & (DecodeSliceFields a ++ s))
 
-decodeFromSliceFull :: forall a s . DecodeSlice a => Slice & s :-> (DecodeSliceFields a ++ s)
+decodeFromSlice
+    :: forall a s .
+      ( DecodeSlice a
+      , Typeable a
+      , Typeable (DecodeSliceFields a)
+      , (DecodeSliceFields a ++ '[]) ~ DecodeSliceFields a
+      )
+    => (Slice & s) :-> (Slice & (DecodeSliceFields a ++ s))
+decodeFromSlice = do
+    comment $ "Decode from slice @" <> show (typeRep (Proxy @a))
+    viaSubroutine @'[Slice]
+                  @(Slice & DecodeSliceFields a) "decodeFromSlice" $ do
+      comment $ "Decode from slice @" <> show (typeRep (Proxy @a))
+      decodeFromSliceImpl @a
+
+
+decodeFromSliceFull
+    :: forall a s .
+      ( DecodeSlice a
+      , Typeable a
+      , Typeable (DecodeSliceFields a)
+      , (DecodeSliceFields a ++ '[]) ~ DecodeSliceFields a
+      )
+    => Slice & s :-> (DecodeSliceFields a ++ s)
 decodeFromSliceFull = do
     decodeFromSlice @a
     endS
 
-decodeFromCell :: forall a s . DecodeSlice a => Cell a & s :-> (DecodeSliceFields a ++ s)
+decodeFromCell
+    :: forall a s .
+      ( DecodeSlice a
+      , Typeable a
+      , Typeable (DecodeSliceFields a)
+      , (DecodeSliceFields a ++ '[]) ~ DecodeSliceFields a
+      )
+    => Cell a & s :-> (DecodeSliceFields a ++ s)
 decodeFromCell = do
     cToS @a
     decodeFromSliceFull @a
 
 -- This version doesn't check that Slice is fully consumed
-decodeFromSliceUnsafe :: forall a s . DecodeSlice a => Slice & s :-> (DecodeSliceFields a ++ s)
+decodeFromSliceUnsafe
+    :: forall a s .
+      ( DecodeSlice a
+      , Typeable a
+      , Typeable (DecodeSliceFields a)
+      , (DecodeSliceFields a ++ '[]) ~ DecodeSliceFields a
+      )
+    => Slice & s :-> (DecodeSliceFields a ++ s)
 decodeFromSliceUnsafe = decodeFromSlice @a >> drop
 
 instance DecodeSlice Word32 where
-    decodeFromSlice = I $ LDU 32
+    decodeFromSliceImpl = mkI $ LDU 32
 
 instance DecodeSlice Signature where
-    decodeFromSlice = pushInt @Integer 512 >> I LDSLICEX
+    decodeFromSliceImpl = pushInt @Integer 512 >> mkI LDSLICEX
 
 instance DecodeSlice PublicKey where
-    decodeFromSlice = I $ LDU 256
+    decodeFromSliceImpl = mkI $ LDU 256
 
 instance DecodeSlice (Hash a) where
-    decodeFromSlice = I $ LDU 256
+    decodeFromSliceImpl = mkI $ LDU 256
 
 instance DecodeSlice (Cell a) where
-    decodeFromSlice = I LDREF
+    decodeFromSliceImpl = mkI LDREF
 
 instance DecodeSlice Timestamp where
-    decodeFromSlice = I $ LDU 32
+    decodeFromSliceImpl = mkI $ LDU 32
 
 -- Mock for DSet
 instance DecodeSlice () where
-    decodeFromSlice = unit >> swap
+    decodeFromSliceImpl = unit >> swap
 
 -- Encoding
 class EncodeBuilder (a :: Kind.Type) where
@@ -70,7 +109,7 @@ class EncodeBuilder (a :: Kind.Type) where
     encodeToBuilder :: Builder ': (EncodeBuilderFields a ++ s) :-> Builder & s
 
 withBuilder :: forall a s t . (Builder & s :-> Builder & t) -> (s :-> Cell a & t)
-withBuilder (I act) = I $ NEWC `Seq` act `Seq` ENDC
+withBuilder (I act r) = I (NEWC `Seq` act `Seq` ENDC) r
 
 encodeToCell :: forall a s . EncodeBuilder a => (EncodeBuilderFields a ++ s) :-> Cell a & s
 encodeToCell = withBuilder @a (encodeToBuilder @a)
@@ -79,22 +118,22 @@ encodeToSlice :: forall a s . EncodeBuilder a => (EncodeBuilderFields a ++ s) :-
 encodeToSlice = encodeToCell @a >> cToS @a
 
 instance EncodeBuilder Word32 where
-    encodeToBuilder = I $ STU 32
+    encodeToBuilder = mkI $ STU 32
 
 instance EncodeBuilder Signature where
     encodeToBuilder = stSlice
 
 instance EncodeBuilder PublicKey where
-    encodeToBuilder = I $ STU 256
+    encodeToBuilder = mkI $ STU 256
 
 instance EncodeBuilder (Hash a) where
-    encodeToBuilder = I $ STU 256
+    encodeToBuilder = mkI $ STU 256
 
 instance EncodeBuilder (Cell a) where
-    encodeToBuilder = I STREF
+    encodeToBuilder = mkI STREF
 
 instance EncodeBuilder Timestamp where
-    encodeToBuilder = I $ STU 32
+    encodeToBuilder = mkI $ STU 32
 
 -- Mock for DSet
 instance EncodeBuilder () where

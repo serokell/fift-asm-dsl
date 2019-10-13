@@ -115,6 +115,8 @@ data Instr (inp :: [T]) (out :: [T]) where
     PAIR :: Instr (a & b & s) ('TupleT [a, b] & s)
     UNPAIR :: Instr ('TupleT [a, b] & s) (a & b & s)
 
+    CALL :: String -> Instr s t
+
 deriving instance Show (Instr a b)
 
 type PopTF n s = (Take n s ++ Drop (n + 1) s)

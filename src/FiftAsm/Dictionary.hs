@@ -17,7 +17,7 @@ module FiftAsm.Dictionary
        , dsetSet
        , dictDelIgnore
        , dictEmpty
-       , dickSize
+       , dictSize
        , dictMerge
 
        , dictEncodeSet
@@ -40,7 +40,7 @@ newtype Size = Size Word32
 type instance ToTVM Size = 'IntT
 
 instance DecodeSlice (Dict k v) where
-    decodeFromSlice = ldDict
+    decodeFromSliceImpl = ldDict
 
 instance EncodeBuilder (Dict k v) where
     encodeToBuilder = stDict
@@ -67,25 +67,25 @@ instance
   => DictOperations' 'SliceT 'SliceT 'False k v where
     dictGet' = do
         pushInt (bitSize @k)
-        I DICTGET
+        mkI DICTGET
     dictSet' = do
         pushInt (bitSize @k)
-        I DICTSET
+        mkI DICTSET
     dictDel' = do
         pushInt (bitSize @k)
-        I DICTDEL
+        mkI DICTDEL
 
 instance (ToTVM k ~ 'IntT, ToTVM v ~ 'SliceT, IsUnsignedTF k ~ 'True, KnownNat (BitSize k))
         => DictOperations' 'IntT 'SliceT 'True k v where
     dictGet' = do
         pushInt (bitSize @k)
-        I DICTUGET
+        mkI DICTUGET
     dictSet' = do
         pushInt (bitSize @k)
-        I DICTUSET
+        mkI DICTUSET
     dictDel' = do
         pushInt (bitSize @k)
-        I DICTUDEL
+        mkI DICTUDEL
 
 instance DictOperations' (ToTVM k) (ToTVM v) (IsUnsignedTF k) k v => DictOperations k v where
     dictGet = dictGet'
@@ -124,18 +124,22 @@ dictDelIgnore = do
     drop
 
 newDict :: forall k v s . s :-> Dict k v & s
-newDict = I NEWDICT
+newDict = mkI NEWDICT
 
 ldDict :: forall k v s . Slice & s :-> Slice & Dict k v & s
-ldDict = I LDDICT
+ldDict = mkI LDDICT
 
 stDict :: forall k v s . Builder & Dict k v & s :-> Builder & s
-stDict = I STDICT
+stDict = mkI STDICT
 
 type DictRemMinC k v =
     ( DecodeSlice k, DecodeSlice v, KnownNat (BitSize k)
     , DecodeSliceFields k ~ '[k]
     , ProhibitMaybe (ToTVM k)
+    , Typeable k
+    , Typeable v
+    , (DecodeSliceFields v ++ '[]) ~ DecodeSliceFields v
+    , Typeable (DecodeSliceFields v)
     )
 
 -- TODO: this function may be extended for DecodeSlice instances
@@ -143,9 +147,12 @@ type DictRemMinC k v =
 dictRemMin
     :: forall k v s . DictRemMinC k v
     => Dict k v & s :-> (Mb '[ k, Slice ] & Dict k v & s)
-dictRemMin = do
+dictRemMin =
+  viaSubroutine @'[Dict k v]
+                @'[Mb '[ k, Slice ], Dict k v]
+                "dictRemMin" $ do
     pushInt (bitSize @k)
-    I DICTREMMIN
+    mkI DICTREMMIN
     fmapMaybe @'[Slice, Slice] @'[k, Slice] $ decodeFromSliceUnsafe @k
 
 -- TODO It's bad idea to pass @Dict k v@ to action
@@ -159,7 +166,7 @@ dictIter'
 dictIter' onEntry = do
     comment "Iterate over dictionary"
     dictRemMin @k @v
-    while (I MAYBE_TO_BOOL) $ do
+    while (mkI MAYBE_TO_BOOL) $ do
         ifJust @'[k, Slice] onEntry ignore
         dictRemMin @k @v
     if IsJust then
@@ -178,13 +185,13 @@ dictIter onEntry = dictIter' $ do
     onEntry
 
 dictEmpty :: Dict k v & s :-> Bool & s
-dictEmpty = I DICTEMPTY
+dictEmpty = mkI DICTEMPTY
 
 -- Returns either Just Size or Nothing if size is not less than passed K.
-dickSize
+dictSize
     :: forall k v s . DictRemMinC k v
     => Dict k v & Word32 & s :-> Mb '[Size] & s
-dickSize = do
+dictSize = viaSubroutine @'[Dict k v, Word32] @'[Mb '[Size]] "dictSize" $ do
     comment "Compute dictionary size"
     pushInt @Size 0
     swap
@@ -224,6 +231,9 @@ dictMerge
     )
     => Dict k v & Dict k v & Word32 & s :-> Mb '[Dict k v] & s
 dictMerge = do
+  viaSubroutine @'[Dict k v, Dict k v, Word32]
+                @'[Mb '[Dict k v]]
+                "dictMerge" $ do
     comment "Merge two dictionaries"
     dup
     dictEmpty
@@ -234,7 +244,7 @@ dictMerge = do
         drop
         dup
         roll @3
-        dickSize
+        dictSize
         if IsJust then
             drop >> just @'[Dict k v]
         else
@@ -243,7 +253,7 @@ dictMerge = do
         dup
         push @3
         swap
-        dickSize
+        dictSize
         stacktype' @[Mb '[Size], Dict k v, Dict k v, Word32]
         -- If size of the first one is not less that K, then just return Nothing
         if IsNothing then
