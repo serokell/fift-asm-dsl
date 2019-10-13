@@ -7,4 +7,4 @@ import FiftAsm
 
 main :: IO ()
 main = do
-    putText (fmt (build (AsProgram recvExternal)))
+    putText (fmt (build (AsProc recvExternal)))

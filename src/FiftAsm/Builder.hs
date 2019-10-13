@@ -1,5 +1,5 @@
 module FiftAsm.Builder
-       ( AsProgram (..)
+       ( AsProc (..)
        ) where
 
 import Fmt
@@ -8,13 +8,13 @@ import qualified Data.Map as M
 import FiftAsm.Instr
 import FiftAsm.DSL ((:->) (..), Subroutine (..))
 
-newtype AsProgram inp out = AsProgram (inp :-> out)
+newtype AsProc inp out = AsProc (inp :-> out)
 
 indentation :: Int
 indentation = 2
 
-instance Buildable (AsProgram inp out) where
-    build (AsProgram (I instr rs)) =
+instance Buildable (AsProc inp out) where
+    build (AsProc (I instr rs)) =
         foldMap declSubroutine (M.keys rs) <>
         M.foldMapWithKey buildSubroutine rs <>
         "\nmain PROC:<{\n" <> indentF indentation (buildInstr instr) <> "}>"
