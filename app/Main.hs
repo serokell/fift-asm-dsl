@@ -6,5 +6,12 @@ import MultiSig
 import FiftAsm
 
 main :: IO ()
-main = do
-    putText (fmt (build (AsProc recvExternal)))
+main = putText $ pretty $ declProgram procedures methods
+  where
+    procedures =
+      [ ("recv_external", decl recvExternal)
+      , ("recv_internal", decl recvInternal)
+      ]
+    methods =
+      [
+      ]

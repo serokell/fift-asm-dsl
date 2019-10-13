@@ -3,12 +3,17 @@
 
 module MultiSig.Impl
        ( recvExternal
+       , recvInternal
        ) where
 
 import Prelude
 
 import MultiSig.Types
 import FiftAsm
+
+
+recvInternal :: '[Slice] :-> '[]
+recvInternal = drop
 
 recvExternal :: '[Slice] :-> '[]
 recvExternal = decodeMsgFromSliceFull recvGetAllOrders recvGetOrdersByKey recvSignMsg

@@ -1,31 +1,15 @@
 module FiftAsm.Builder
-       ( AsProc (..)
+       ( buildInstr
+       , indentation
        ) where
 
 import Fmt
-import qualified Data.Map as M
 
 import FiftAsm.Instr
-import FiftAsm.DSL ((:->) (..), Subroutine (..))
 
-newtype AsProc inp out = AsProc (inp :-> out)
 
 indentation :: Int
 indentation = 2
-
-instance Buildable (AsProc inp out) where
-    build (AsProc (I instr rs)) =
-        foldMap declSubroutine (M.keys rs) <>
-        M.foldMapWithKey buildSubroutine rs <>
-        "\nmain PROC:<{\n" <> indentF indentation (buildInstr instr) <> "}>"
-
-declSubroutine :: String -> Builder
-declSubroutine name =
-    "DECLPROC " <> build name <> "\n"
-
-buildSubroutine :: String -> Subroutine -> Builder
-buildSubroutine name (Subroutine instr) =
-    build name <> " PROC:<{\n" <> indentF indentation (buildInstr instr) <> "}>\n"
 
 instance Buildable Natural where
     build = build @Integer . toInteger
