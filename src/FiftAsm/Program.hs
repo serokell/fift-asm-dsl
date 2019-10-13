@@ -9,8 +9,11 @@ module FiftAsm.Program
     , declProgram
     ) where
 
+import Prelude hiding (foldMap)
+
 import Data.Bits ((.|.))
 import Data.ByteString.Char8 (pack)
+import Data.Foldable (foldMap)
 import Data.Map (Map)
 import Data.Word (Word16)
 import Fmt
@@ -48,14 +51,6 @@ declProgram procedures methods =
 -- Builders
 --
 
-data NamedDeclaration = NamedDeclaration String UntypedDeclaration
-
-instance Buildable NamedDeclaration where
-    build (NamedDeclaration name (UntypedDeclaration (I instr rs))) =
-        foldMap declareProc (M.keys rs) <>
-        buildProc name (Subroutine instr) <>
-        M.foldMapWithKey buildProc rs
-
 declareProc :: String -> Builder
 declareProc name =
     "DECLPROC " <> build name <> "\n"
@@ -68,16 +63,38 @@ declareMethod name mId =
     methodId = maybe autoId fromIntegral mId
     autoId = fromIntegral (crc16 . pack $ name) .|. 0x10000
 
-buildProc :: String -> Subroutine -> Builder
-buildProc name (Subroutine instr) =
-    build name <> " PROC:<{\n" <> indentF indentation (buildInstr instr) <> "}>\n"
+
+buildSubroutine :: String -> Subroutine -> Builder
+buildSubroutine name (Subroutine instr) =
+    build name <> " PROC:<{\n" <>
+    indentF indentation (buildInstr instr) <>
+    "}>\n"
+
+buildUntypedDeclaration :: String -> UntypedDeclaration -> Builder
+buildUntypedDeclaration name (UntypedDeclaration (I instr _)) =
+    buildSubroutine name (Subroutine instr)
 
 
 instance Buildable Program where
     build (Program { pProcedures, pMethods }) =
-      "PROGRAM{\n" <>
-      M.foldMapWithKey
-        (\n p -> declareProc n <> build (NamedDeclaration n p)) pProcedures <>
-      M.foldMapWithKey
-        (\n (i, m) -> declareMethod n i <> build (NamedDeclaration n m)) pMethods <>
-      "}END>c"
+        "PROGRAM{\n" <>
+
+        foldMap declareProc (M.keys subroutines) <>
+        M.foldMapWithKey buildSubroutine subroutines <>
+
+        M.foldMapWithKey
+          (\n p -> declareProc n <> buildUntypedDeclaration n p) pProcedures <>
+
+        M.foldMapWithKey
+          (\n (i, m) -> declareMethod n i <> buildUntypedDeclaration n m) pMethods <>
+
+        "}END>c"
+      where
+        subroutines
+          = unionSubroutines pProcedures
+         <> unionSubroutines (fmap snd pMethods)
+
+unionSubroutines :: Foldable f => f UntypedDeclaration -> Map String Subroutine
+unionSubroutines = foldMap getSubroutines
+  where
+    getSubroutines (UntypedDeclaration (I _ rs)) = rs
