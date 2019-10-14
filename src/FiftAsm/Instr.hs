@@ -79,14 +79,18 @@ data Instr (inp :: [T]) (out :: [T]) where
     CTOS     :: Instr ('CellT & s) ('SliceT & s)
     ENDS     :: Instr ('SliceT & s) s
     LDU      :: Bits -> Instr ('SliceT & s) ('SliceT & 'IntT & s)
+    PLDU     :: Bits -> Instr ('SliceT & s) ('IntT & s)
     -- LDSLICE  :: Bits -> Instr ('SliceT & s) ('SliceT & 'SliceT & s)
     LDSLICEX :: Instr ('IntT & 'SliceT & s) ('SliceT & 'SliceT & s)
+    PLDSLICEX :: Instr ('IntT & 'SliceT & s) ('SliceT & s)
     LDREF    :: Instr ('SliceT & s) ('SliceT & 'CellT & s)
+    PLDREF   :: Instr ('SliceT & s) ('CellT & s)
 
     -- dict primitives
     NEWDICT :: Instr s ('DictT & s)
     DICTEMPTY :: Instr ('DictT & s) ('IntT & s)
     LDDICT  :: Instr ('SliceT & s) ('SliceT & 'DictT & s)
+    PLDDICT  :: Instr ('SliceT & s) ('DictT & s)
     DICTGET :: Instr ('IntT & 'DictT & 'SliceT & s) ('MaybeT '[ 'SliceT ] & s)
     DICTUGET :: Instr ('IntT & 'DictT & 'IntT & s) ('MaybeT '[ 'SliceT ] & s)
     STDICT  :: Instr ('BuilderT & 'DictT & s) ('BuilderT & s)

@@ -52,6 +52,7 @@ module FiftAsm.DSL
        , ldSliceX
        , stSlice
        , ld32Unsigned
+       , pld32Unsigned
        , st32Unsigned
        , endS
        , cToS
@@ -320,6 +321,9 @@ stSlice = mkI STSLICE
 
 ld32Unsigned :: forall a s . ToTVM a ~ 'IntT => Slice & s :-> Slice & a & s
 ld32Unsigned = mkI (LDU 31)
+
+pld32Unsigned :: forall a s . ToTVM a ~ 'IntT => Slice & s :-> a & s
+pld32Unsigned = mkI (PLDU 31)
 
 st32Unsigned :: forall a s . ToTVM a ~ 'IntT => Builder & a & s :-> Builder & s
 st32Unsigned = mkI (STU 31)

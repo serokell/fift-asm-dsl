@@ -41,6 +41,7 @@ type instance ToTVM Size = 'IntT
 
 instance DecodeSlice (Dict k v) where
     decodeFromSliceImpl = ldDict
+    preloadFromSliceImpl = pldDict
 
 instance EncodeBuilder (Dict k v) where
     encodeToBuilder = stDict
@@ -128,6 +129,9 @@ newDict = mkI NEWDICT
 
 ldDict :: forall k v s . Slice & s :-> Slice & Dict k v & s
 ldDict = mkI LDDICT
+
+pldDict :: forall k v s . Slice & s :-> Dict k v & s
+pldDict = mkI PLDDICT
 
 stDict :: forall k v s . Builder & Dict k v & s :-> Builder & s
 stDict = mkI STDICT
