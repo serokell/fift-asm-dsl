@@ -14,7 +14,6 @@ module MultiSig.Types
        , OrderDict
        , SignDict
        , MultiSigError (..)
-       , decodeMsgFromSliceFull
        ) where
 
 import Prelude
@@ -31,46 +30,6 @@ instance DecodeSlice Nonce where
 instance EncodeBuilder Nonce where
     encodeToBuilder = st32Unsigned
 
--- data Msg = GetAllOrders | GetOrdersByKey PublicKey | SignMsg_ SignMsg
-
-decodeMsgFromSliceFull
-  :: '[] :-> '[]
-  -> '[Bool, PublicKey] :-> '[]
-  -> DecodeSliceFields SignMsg :-> '[]
-  -> '[Slice] :-> '[]
-decodeMsgFromSliceFull handleGetAll handleGetByKey handleSignMsg = do
-  decodeFromSlice @Word32
-  swap
-  dup
-  pushInt 3
-  if IsGt
-    then throw ErrorParsingMsg
-    else ignore
-  stacktype @'[Word32, Slice]
-  dup
-  pushInt 2
-  if IsGt
-    then do
-      drop
-      endS
-      handleGetAll
-    else do
-      dup
-      pushInt 0
-      if IsGt
-        then do
-          pushInt 1
-          equalInt
-          swap
-          decodeFromSlice @PublicKey
-          endS
-          swap
-          handleGetByKey
-        else do
-          drop
-          decodeFromSlice @SignMsg
-          endS
-          handleSignMsg
 
 -- Msg part
 type SignDict = Dict PublicKey Signature

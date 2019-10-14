@@ -73,6 +73,9 @@ library:
   build-tools:
     - autoexporter
   dependencies:
+    - array
+    - bytestring
+    - containers
     - vinyl
     - fmt
 
