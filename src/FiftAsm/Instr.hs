@@ -101,6 +101,7 @@ data Instr (inp :: [T]) (out :: [T]) where
     PLDSLICEX :: Instr ('IntT & 'SliceT & s) ('SliceT & s)
     LDREF    :: Instr ('SliceT & s) ('SliceT & 'CellT & s)
     PLDREF   :: Instr ('SliceT & s) ('CellT & s)
+    SREFS :: Instr ('SliceT & s) ('IntT & s)
 
     -- dict primitives
     NEWDICT :: Instr s ('DictT & s)
@@ -142,6 +143,7 @@ data Instr (inp :: [T]) (out :: [T]) where
 
     NOW :: Instr s ('IntT & s)
     SENDRAWMSG :: Instr ('IntT & 'CellT & s) s
+    ACCEPT :: Instr s s
 
     PAIR :: Instr (a & b & s) ('TupleT [a, b] & s)
     UNPAIR :: Instr ('TupleT [a, b] & s) (a & b & s)

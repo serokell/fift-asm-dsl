@@ -59,6 +59,7 @@ module FiftAsm.DSL
        , st32Unsigned
        , endS
        , cToS
+       , srefs
 
        , inc
        , equalInt
@@ -87,6 +88,7 @@ module FiftAsm.DSL
 
        , now
        , sendRawMsg
+       , accept
 
        , stacktype
        , stacktype'
@@ -170,6 +172,7 @@ type instance ToTVM Signature = 'SliceT
 type instance ToTVM PublicKey = 'IntT
 type instance ToTVM (Hash a)  = 'IntT
 type instance ToTVM Slice     = 'SliceT
+type instance ToTVM Word8     = 'IntT
 type instance ToTVM Word32    = 'IntT
 type instance ToTVM Timestamp = 'IntT
 type instance ToTVM Bits      = 'IntT
@@ -362,6 +365,9 @@ endS = mkI ENDS
 cToS :: forall a s . Cell a & s :-> Slice & s
 cToS = mkI CTOS
 
+srefs :: forall a s . ToTVM a ~ 'IntT => Slice & s :-> a & s
+srefs = mkI SREFS
+
 inc :: ToTVM a ~ 'IntT => a & s :-> a & s
 inc = mkI INC
 
@@ -466,8 +472,11 @@ throwIfNot = mkI . THROWIFNOT
 now :: s :-> Timestamp & s
 now = mkI NOW
 
-sendRawMsg :: Word32 & Cell MessageObject & s :-> s
+sendRawMsg :: Word8 & Cell MessageObject & s :-> s
 sendRawMsg = mkI SENDRAWMSG
+
+accept :: s :-> s
+accept = mkI ACCEPT
 
 -- Auxiliary DSL instructions
 stacktype :: forall s . s :-> s

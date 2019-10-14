@@ -114,6 +114,10 @@ preloadFromCell = do
     preloadFromSlice @a
 
 
+instance DecodeSlice Word8 where
+    decodeFromSliceImpl = mkI $ LDU 8
+    preloadFromSliceImpl = mkI $ PLDU 8
+
 instance DecodeSlice Word32 where
     decodeFromSliceImpl = mkI $ LDU 32
     preloadFromSliceImpl = mkI $ PLDU 32
