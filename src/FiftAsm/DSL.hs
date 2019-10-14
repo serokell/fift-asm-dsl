@@ -404,11 +404,11 @@ inc = mkI INC
 add :: ToTVM a ~ 'IntT => a & a & s :-> a & s
 add = mkI ADD
 
-rshift :: Bits -> a & s :-> a & s
-rshift = error "not implemented yet"
+rshift :: ToTVM a ~ 'IntT => Bits -> a & s :-> a & s
+rshift b = pushInt b >> mkI RSHIFT
 
-lshift :: Bits -> a & s :-> a & s
-lshift = error "not implemented yet"
+lshift :: ToTVM a ~ 'IntT => Bits -> a & s :-> a & s
+lshift b = pushInt b >> mkI LSHIFT
 
 equalInt :: ToTVM a ~ 'IntT => a & a & s :-> Bool & s
 equalInt = mkI EQUAL

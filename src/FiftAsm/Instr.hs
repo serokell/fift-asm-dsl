@@ -86,6 +86,10 @@ data Instr (inp :: [T]) (out :: [T]) where
     GREATER  :: Instr ('IntT & 'IntT & s) ('IntT & s)
     LESS  :: Instr ('IntT & 'IntT & s) ('IntT & s)
 
+    LSHIFT   :: Instr ('IntT & 'IntT & s) ('IntT & s)
+    RSHIFT   :: Instr ('IntT & 'IntT & s) ('IntT & s)
+
+
     -- cell serialization (Builder manipulation primitives)
     NEWC     :: Instr s ('BuilderT & s)
     ENDC     :: Instr ('BuilderT & s) ('CellT & s)
