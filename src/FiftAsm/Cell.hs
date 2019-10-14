@@ -44,10 +44,7 @@ decodeFromSlice
     => (Slice & s) :-> (Slice & (DecodeSliceFields a ++ s))
 decodeFromSlice = do
     comment $ "Decode from slice @" <> show (typeRep (Proxy @a))
-    viaSubroutine @'[Slice]
-                  @(Slice & DecodeSliceFields a) "decodeFromSlice" $ do
-      comment $ "Decode from slice @" <> show (typeRep (Proxy @a))
-      decodeFromSliceImpl @a
+    decodeFromSliceImpl @a
 
 
 decodeFromSliceFull
@@ -97,9 +94,7 @@ preloadFromSlice
     => (Slice & s) :-> (DecodeSliceFields a ++ s)
 preloadFromSlice = do
     comment $ "Preload from slice @" <> show (typeRep (Proxy @a))
-    viaSubroutine @'[Slice] @(DecodeSliceFields a) "decodeFromSlice" $ do
-      comment $ "Preload from slice @" <> show (typeRep (Proxy @a))
-      preloadFromSliceImpl @a
+    preloadFromSliceImpl @a
 
 preloadFromCell
     :: forall a s .
