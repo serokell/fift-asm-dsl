@@ -8,6 +8,8 @@ module FiftAsm.Cell
        , decodeFromSliceFull
        , decodeFromCell
        , decodeFromSliceUnsafe
+       , preloadFromSlice
+       , preloadFromCell
 
        , EncodeBuilder (..)
        , encodeToCell
@@ -29,6 +31,9 @@ class DecodeSlice (a :: Kind.Type) where
     type instance DecodeSliceFields a = '[a]
     decodeFromSliceImpl :: (Slice & s) :-> (Slice & (DecodeSliceFields a ++ s))
 
+    preloadFromSliceImpl :: (Slice & s) :-> (DecodeSliceFields a ++ s)
+    preloadFromSliceImpl = decodeFromSliceImpl @a >> drop
+
 decodeFromSlice
     :: forall a s .
       ( DecodeSlice a
@@ -39,10 +44,7 @@ decodeFromSlice
     => (Slice & s) :-> (Slice & (DecodeSliceFields a ++ s))
 decodeFromSlice = do
     comment $ "Decode from slice @" <> show (typeRep (Proxy @a))
-    viaSubroutine @'[Slice]
-                  @(Slice & DecodeSliceFields a) "decodeFromSlice" $ do
-      comment $ "Decode from slice @" <> show (typeRep (Proxy @a))
-      decodeFromSliceImpl @a
+    decodeFromSliceImpl @a
 
 
 decodeFromSliceFull
@@ -80,27 +82,65 @@ decodeFromSliceUnsafe
     => Slice & s :-> (DecodeSliceFields a ++ s)
 decodeFromSliceUnsafe = decodeFromSlice @a >> drop
 
+
+
+preloadFromSlice
+    :: forall a s .
+      ( DecodeSlice a
+      , Typeable a
+      , Typeable (DecodeSliceFields a)
+      , (DecodeSliceFields a ++ '[]) ~ DecodeSliceFields a
+      )
+    => (Slice & s) :-> (DecodeSliceFields a ++ s)
+preloadFromSlice = do
+    comment $ "Preload from slice @" <> show (typeRep (Proxy @a))
+    preloadFromSliceImpl @a
+
+preloadFromCell
+    :: forall a s .
+      ( DecodeSlice a
+      , Typeable a
+      , Typeable (DecodeSliceFields a)
+      , (DecodeSliceFields a ++ '[]) ~ DecodeSliceFields a
+      )
+    => Cell a & s :-> (DecodeSliceFields a ++ s)
+preloadFromCell = do
+    cToS @a
+    preloadFromSlice @a
+
+
+instance DecodeSlice Word8 where
+    decodeFromSliceImpl = mkI $ LDU 8
+    preloadFromSliceImpl = mkI $ PLDU 8
+
 instance DecodeSlice Word32 where
     decodeFromSliceImpl = mkI $ LDU 32
+    preloadFromSliceImpl = mkI $ PLDU 32
 
 instance DecodeSlice Signature where
     decodeFromSliceImpl = pushInt @Integer 512 >> mkI LDSLICEX
+    preloadFromSliceImpl = pushInt @Integer 512 >> mkI PLDSLICEX
 
 instance DecodeSlice PublicKey where
     decodeFromSliceImpl = mkI $ LDU 256
+    preloadFromSliceImpl = mkI $ PLDU 256
 
 instance DecodeSlice (Hash a) where
     decodeFromSliceImpl = mkI $ LDU 256
+    preloadFromSliceImpl = mkI $ PLDU 256
 
 instance DecodeSlice (Cell a) where
     decodeFromSliceImpl = mkI LDREF
+    preloadFromSliceImpl = mkI PLDREF
 
 instance DecodeSlice Timestamp where
     decodeFromSliceImpl = mkI $ LDU 32
+    preloadFromSliceImpl = mkI $ PLDU 32
 
 -- Mock for DSet
 instance DecodeSlice () where
     decodeFromSliceImpl = unit >> swap
+    preloadFromSliceImpl = unit >> nip
 
 -- Encoding
 class EncodeBuilder (a :: Kind.Type) where

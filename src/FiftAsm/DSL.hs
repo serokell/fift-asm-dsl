@@ -38,10 +38,16 @@ module FiftAsm.DSL
        , true
        , false
        , pop
+       , nip
        , moveOnTop
        , rollRev
        , roll
        , reversePrefix
+       , xchg
+       , xchg'
+       , xchg2
+       , xcpu
+       , xc2pu
 
        , pushRoot
        , popRoot
@@ -49,9 +55,11 @@ module FiftAsm.DSL
        , ldSliceX
        , stSlice
        , ld32Unsigned
+       , pld32Unsigned
        , st32Unsigned
        , endS
        , cToS
+       , srefs
 
        , inc
        , equalInt
@@ -61,6 +69,7 @@ module FiftAsm.DSL
 
        , dataHash
        , cellHash
+       , sliceHash
        , chkSignS
        , chkSignU
 
@@ -79,6 +88,7 @@ module FiftAsm.DSL
 
        , now
        , sendRawMsg
+       , accept
 
        , stacktype
        , stacktype'
@@ -94,6 +104,7 @@ import Prelude
 
 import qualified Data.Kind as Kind
 import GHC.TypeLits (type (+), type (<=))
+import GHC.TypeLits.Extra (Max)
 import Data.Typeable (typeRep, typeRepFingerprint)
 import qualified Data.Map as M
 
@@ -161,6 +172,7 @@ type instance ToTVM Signature = 'SliceT
 type instance ToTVM PublicKey = 'IntT
 type instance ToTVM (Hash a)  = 'IntT
 type instance ToTVM Slice     = 'SliceT
+type instance ToTVM Word8     = 'IntT
 type instance ToTVM Word32    = 'IntT
 type instance ToTVM Timestamp = 'IntT
 type instance ToTVM Bits      = 'IntT
@@ -240,6 +252,13 @@ pop :: forall (i :: Nat) s .
     => s :-> PopTF i s
 pop = mkI (POP (Proxy @i))
 
+nip ::
+    ( ProhibitMaybeTF (ToTVM a)
+    , ProhibitMaybeTF (ToTVM b)
+    )
+    => a & b & s :-> a & s
+nip = pop @1
+
 rollRev
     :: forall (n :: Nat) s .
     ( ProhibitMaybes (Take n (ToTVMs s)), 1 <= n
@@ -248,6 +267,18 @@ rollRev
     )
     => s :-> RollRevTF n s
 rollRev = mkI (ROLLREV (Proxy @n))
+
+-- | Check @2 roll ~ rot@
+_rollTest
+  :: ProhibitMaybes (ToTVMs '[x, y, z])
+  => '[z, y, x] :-> '[x, z, y]
+_rollTest = roll @2
+
+-- | Check @2 rollRev ~ rot rot@
+_rollRevTest
+  :: ProhibitMaybes (ToTVMs '[x, y, z])
+  => '[z, y, x] :-> '[y, x, z]
+_rollRevTest = rollRev @2
 
 roll
     :: forall (n :: Nat) s .
@@ -258,15 +289,15 @@ roll
     => s :-> RollTF n s
 roll = mkI (ROLL (Proxy @n))
 
--- equal to ROLLREV (i + 1)
+-- equal to ROLL i
 moveOnTop
     :: forall (i :: Nat) s .
-    ( ProhibitMaybes (Take (i + 1) (ToTVMs s)), 1 <= i + 1
-    , RollRevTF (i + 1) (ToTVMs s) ~ ToTVMs (RollRevTF (i + 1) s)
-    , KnownNat (i + 1)
+    ( ProhibitMaybes (Take i (ToTVMs s)), 1 <= i
+    , RollTF i (ToTVMs s) ~ ToTVMs (RollTF i s)
+    , KnownNat i
     )
-    => s :-> RollRevTF (i + 1) s
-moveOnTop = rollRev @(i + 1)
+    => s :-> RollTF i s
+moveOnTop = roll @i
 
 reversePrefix
     :: forall (n :: Nat) s s' .
@@ -277,6 +308,47 @@ reversePrefix
     )
     => s :-> s'
 reversePrefix = mkI (REVERSE_PREFIX (Proxy @n))
+
+xchg
+  :: forall (i :: Nat) s .
+  ( ProhibitMaybes (Take i (ToTVMs s)), 1 <= i, KnownNat i
+  , XchgTF 0 i (ToTVMs s) ~ ToTVMs (XchgTF 0 i s)
+  )
+  => s :-> XchgTF 0 i s
+xchg = mkI (XCHG (Proxy @i))
+
+xchg'
+  :: forall (i :: Nat) (j :: Nat) s .
+  ( ProhibitMaybes (Take (Max i j) (ToTVMs s)), KnownNat i, KnownNat j
+  , XchgTF i j (ToTVMs s) ~ ToTVMs (XchgTF i j s)
+  )
+  => s :-> XchgTF i j s
+xchg' = mkI (XCHG' (Proxy @i) (Proxy @j))
+
+xchg2
+  :: forall (i :: Nat) (j :: Nat) s .
+  ( ProhibitMaybes (Take (Max i j) (ToTVMs s)), KnownNat i, KnownNat j
+  , Xchg2TF i j (ToTVMs s) ~ ToTVMs (Xchg2TF i j s)
+  )
+  => s :-> Xchg2TF i j s
+xchg2 = mkI (XCHG2 (Proxy @i) (Proxy @j))
+
+xcpu
+  :: forall (i :: Nat) (j :: Nat) s .
+  ( ProhibitMaybes (Take (Max i j) (ToTVMs s))
+  , PushTF j (XchgTF 0 i (ToTVMs s)) ~ ToTVMs (PushTF j (XchgTF 0 i s))
+  , KnownNat i, KnownNat j)
+  => s :-> PushTF j (XchgTF 0 i s)
+xcpu = mkI (XCPU (Proxy @i) (Proxy @j))
+
+xc2pu
+  :: forall (i :: Nat) (j :: Nat) (k :: Nat) s .
+  ( ProhibitMaybes (Take (Max (Max i j) k) (ToTVMs s))
+  , PushTF k (Xchg2TF i j (ToTVMs s)) ~ ToTVMs (PushTF k (Xchg2TF i j s))
+  , KnownNat i, KnownNat j, KnownNat k)
+  => s :-> PushTF k (Xchg2TF i j s)
+xc2pu = mkI (XC2PU (Proxy @i) (Proxy @j) (Proxy @k))
+
 
 pushRoot :: forall a s . s :-> (Cell a & s)
 pushRoot = mkI PUSHROOT
@@ -293,6 +365,9 @@ stSlice = mkI STSLICE
 ld32Unsigned :: forall a s . ToTVM a ~ 'IntT => Slice & s :-> Slice & a & s
 ld32Unsigned = mkI (LDU 31)
 
+pld32Unsigned :: forall a s . ToTVM a ~ 'IntT => Slice & s :-> a & s
+pld32Unsigned = mkI (PLDU 31)
+
 st32Unsigned :: forall a s . ToTVM a ~ 'IntT => Builder & a & s :-> Builder & s
 st32Unsigned = mkI (STU 31)
 
@@ -301,6 +376,9 @@ endS = mkI ENDS
 
 cToS :: forall a s . Cell a & s :-> Slice & s
 cToS = mkI CTOS
+
+srefs :: forall a s . ToTVM a ~ 'IntT => Slice & s :-> a & s
+srefs = mkI SREFS
 
 inc :: ToTVM a ~ 'IntT => a & s :-> a & s
 inc = mkI INC
@@ -322,6 +400,9 @@ dataHash = mkI SHA256U
 
 cellHash :: Cell a & s :-> Hash a & s
 cellHash = mkI HASHCU
+
+sliceHash :: Slice & s :-> Hash Slice & s
+sliceHash = mkI HASHSU
 
 chkSignS :: PublicKey & Signature & Slice & s :-> Bool & s
 chkSignS = mkI CHKSIGNS
@@ -403,8 +484,11 @@ throwIfNot = mkI . THROWIFNOT
 now :: s :-> Timestamp & s
 now = mkI NOW
 
-sendRawMsg :: Word32 & Cell MessageObject & s :-> s
+sendRawMsg :: Word8 & Cell MessageObject & s :-> s
 sendRawMsg = mkI SENDRAWMSG
+
+accept :: s :-> s
+accept = mkI ACCEPT
 
 -- Auxiliary DSL instructions
 stacktype :: forall s . s :-> s

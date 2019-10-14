@@ -10,9 +10,12 @@ module FiftAsm.Instr
     , PopTF
     , RollRevTF
     , RollTF
+    , XchgTF
+    , Xchg2TF
     ) where
 
 import GHC.TypeLits (TypeError, ErrorMessage (..), type (-), type (+), type (<=))
+import GHC.TypeLits.Extra (Max, Min)
 import Data.Vinyl.TypeLevel (type (++))
 import Fmt (Buildable)
 
@@ -47,6 +50,29 @@ data Instr (inp :: [T]) (out :: [T]) where
     REVERSE_PREFIX
         :: forall (n :: Nat) s . (ProhibitMaybes (Take n s), 2 <= n, KnownNat n)
         => Proxy n -> Instr s (Reverse (Take n s) ++ Drop n s)
+    XCHG
+      :: forall (i :: Nat) s .
+      ( ProhibitMaybes (Take i s), 1 <= i, KnownNat i )
+      => Proxy i -> Instr s (XchgTF 0 i s)
+    XCHG'
+      :: forall (i :: Nat) (j :: Nat) s .
+      ( ProhibitMaybes (Take (Max i j) s), KnownNat i, KnownNat j
+      ) => Proxy i -> Proxy j -> Instr s (XchgTF i j s)
+    XCHG2
+      :: forall (i :: Nat) (j :: Nat) s .
+      ( ProhibitMaybes (Take (Max i j) s), KnownNat i, KnownNat j
+      ) => Proxy i -> Proxy j -> Instr s (Xchg2TF i j s)
+    XCPU
+      :: forall (i :: Nat) (j :: Nat) s .
+      ( ProhibitMaybes (Take (Max i j) s), KnownNat i, KnownNat j
+      ) => Proxy i -> Proxy j -> Instr s (PushTF j (XchgTF 0 i s))
+    XC2PU
+      :: forall (i :: Nat) (j :: Nat) (k :: Nat) s .
+      ( ProhibitMaybes (Take (Max (Max i j) k) s)
+      , KnownNat i, KnownNat j, KnownNat k
+      ) => Proxy i -> Proxy j -> Proxy k -> Instr s (PushTF k (Xchg2TF i j s))
+
+
 
     PUSHROOT :: Instr s ('CellT & s)
     POPROOT  :: Instr ('CellT & s) s
@@ -69,14 +95,19 @@ data Instr (inp :: [T]) (out :: [T]) where
     CTOS     :: Instr ('CellT & s) ('SliceT & s)
     ENDS     :: Instr ('SliceT & s) s
     LDU      :: Bits -> Instr ('SliceT & s) ('SliceT & 'IntT & s)
+    PLDU     :: Bits -> Instr ('SliceT & s) ('IntT & s)
     -- LDSLICE  :: Bits -> Instr ('SliceT & s) ('SliceT & 'SliceT & s)
     LDSLICEX :: Instr ('IntT & 'SliceT & s) ('SliceT & 'SliceT & s)
+    PLDSLICEX :: Instr ('IntT & 'SliceT & s) ('SliceT & s)
     LDREF    :: Instr ('SliceT & s) ('SliceT & 'CellT & s)
+    PLDREF   :: Instr ('SliceT & s) ('CellT & s)
+    SREFS :: Instr ('SliceT & s) ('IntT & s)
 
     -- dict primitives
     NEWDICT :: Instr s ('DictT & s)
     DICTEMPTY :: Instr ('DictT & s) ('IntT & s)
     LDDICT  :: Instr ('SliceT & s) ('SliceT & 'DictT & s)
+    PLDDICT  :: Instr ('SliceT & s) ('DictT & s)
     DICTGET :: Instr ('IntT & 'DictT & 'SliceT & s) ('MaybeT '[ 'SliceT ] & s)
     DICTUGET :: Instr ('IntT & 'DictT & 'IntT & s) ('MaybeT '[ 'SliceT ] & s)
     STDICT  :: Instr ('BuilderT & 'DictT & s) ('BuilderT & s)
@@ -105,12 +136,14 @@ data Instr (inp :: [T]) (out :: [T]) where
 
     -- hashes
     HASHCU  :: Instr ('CellT & s) ('IntT & s)  -- hashing a Cell
+    HASHSU  :: Instr ('SliceT & s) ('IntT & s)  -- hashing a Slice
     SHA256U :: Instr ('SliceT & s) ('IntT & s) -- hashing only Data bits of slice
     CHKSIGNS :: Instr ('IntT & 'SliceT & 'SliceT & s) ('IntT & s)
     CHKSIGNU :: Instr ('IntT & 'SliceT & 'IntT & s) ('IntT & s)
 
     NOW :: Instr s ('IntT & s)
     SENDRAWMSG :: Instr ('IntT & 'CellT & s) s
+    ACCEPT :: Instr s s
 
     PAIR :: Instr (a & b & s) ('TupleT [a, b] & s)
     UNPAIR :: Instr ('TupleT [a, b] & s) (a & b & s)
@@ -125,9 +158,14 @@ type family PushTF (n :: Nat) (xs :: [k]) where
     PushTF 0 (x ': xs) = x ': x ': xs
     PushTF n (y ': xs) = Swap (y ': PushTF (n - 1) xs)
 
-type RollRevTF n s = (Head (Drop (n - 1) s) ': Take (n - 1) s) ++ Drop n s
+type RollTF n s = Head (Drop n s) ': Take n s ++ Drop (n + 1) s
 
-type RollTF n s = Take (n - 1) (Drop 1 s) ++ (Head s ': Drop n s)
+type RollRevTF n s = Take n (Drop 1 s) ++ (Head s ': Drop (n + 1) s)
+
+type XchgTF i j s =
+  Take (Min i j) s ++ (Head (Drop (Max i j) s) ': Take (Max i j - Min i j - 1) (Drop (Min i j + 1) s) ++ (Head (Drop (Min i j) s) ': Drop (Max i j + 1) s))
+
+type Xchg2TF i j s = XchgTF 0 j (XchgTF 1 i s)
 
 type ProhibitMaybes (xs :: [T]) = RecAll_ xs ProhibitMaybe
 

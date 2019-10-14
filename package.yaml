@@ -76,6 +76,7 @@ library:
     - array
     - bytestring
     - containers
+    - ghc-typelits-extra
     - vinyl
     - fmt
 
@@ -83,6 +84,17 @@ executables:
   fift-asm-dsl-exe:
     main:                Main.hs
     source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - fift-asm-dsl
+    - fmt
+
+  gen-wallet:
+    main:                Main.hs
+    source-dirs:         wallet
     ghc-options:
     - -threaded
     - -rtsopts

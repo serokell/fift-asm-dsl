@@ -26,6 +26,7 @@ type instance ToTVM Nonce = 'IntT
 
 instance DecodeSlice Nonce where
     decodeFromSliceImpl = ld32Unsigned
+    preloadFromSliceImpl = pld32Unsigned
 
 instance EncodeBuilder Nonce where
     encodeToBuilder = st32Unsigned
