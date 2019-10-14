@@ -34,8 +34,8 @@ recvSignMsg = viaSubroutine @(DecodeSliceFields SignMsg) @'[] "recvSignMsg" $ do
     -- TODO store garbage collected OrderDict regardless
     -- of message processing
     garbageCollectOrders
-
-    stacktype @[OrderDict, DSet PublicKey, Word32, Nonce, Cell SignMsgBody, SignDict, Nonce]
+    rollRev @7
+    stacktype @[OrderDict, DSet PublicKey, Word32, Nonce, Cell SignMsgBody, SignDict, Nonce, TimestampDict]
 
     -- Check that nonces of the storage and the message matched
     comment "Checking that nonces match"
@@ -43,7 +43,7 @@ recvSignMsg = viaSubroutine @(DecodeSliceFields SignMsg) @'[] "recvSignMsg" $ do
     push @4
     compareNonces
     throwIfNot NonceMismatch
-    stacktype @[OrderDict, DSet PublicKey, Word32, Nonce, Cell SignMsgBody, SignDict]
+    stacktype @[OrderDict, DSet PublicKey, Word32, Nonce, Cell SignMsgBody, SignDict, TimestampDict]
 
     -- Check that the message hasn't expired
     comment "Checking that the message hasn't expired"
@@ -56,7 +56,7 @@ recvSignMsg = viaSubroutine @(DecodeSliceFields SignMsg) @'[] "recvSignMsg" $ do
     comment "Compute hash of message body"
     dup
     computeMsgBodyHash
-    stacktype @[Hash SignMsgBody, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce, SignDict]
+    stacktype @[Hash SignMsgBody, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce, SignDict, TimestampDict]
 
     -- Remove signatures of the message which are not valid
     comment "Filter invalid signature from the message"
@@ -65,27 +65,57 @@ recvSignMsg = viaSubroutine @(DecodeSliceFields SignMsg) @'[] "recvSignMsg" $ do
     swap
     moveOnTop @8
     filterValidSignatures
-    stacktype @[AccumPkDict, Hash SignMsgBody, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce]
+    stacktype @[AccumPkDict, Hash SignMsgBody, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce, TimestampDict]
     dup
     cast @AccumPkDict @(DSet PublicKey)
     dictEmpty
     throwIf NoValidSignatures
 
     -- Add valid signatures to the storage's OrderDict
-    push @5
+    push @5 -- push K on the top
+    roll @8
+    roll @8
+    dup
+    rollRev @9
+    stacktype @[Nonce, TimestampDict, Word32, AccumPkDict, Hash SignMsgBody, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce]
     extendOrder
-    stacktype @[OrderDict, DSet PublicKey, Word32, Nonce]
+    stacktype @[TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce]
 
     comment "Encode storage fields"
-    reversePrefix @4 -- reverse first 4 elements
-    stacktype @[Nonce, Word32, DSet PublicKey, OrderDict]
+    reversePrefix @5 -- reverse first 4 elements
+    stacktype @[Nonce, Word32, DSet PublicKey, OrderDict, TimestampDict]
     inc
     encodeToCell @Storage
     popRoot
 
--- TODO Garbage collection of expired orders
-garbageCollectOrders :: OrderDict & s :-> OrderDict & s
-garbageCollectOrders = ignore
+-- Garbage collection of expired orders
+garbageCollectOrders :: TimestampDict & OrderDict & s :-> TimestampDict & OrderDict & s
+garbageCollectOrders = do
+    now
+    swap
+    dup
+    dictIter $ do
+        stacktype' @[Hash SignMsgBody, TimeNonce, TimestampDict, TimestampDict, Timestamp, OrderDict]
+        swap
+        rshift 32
+        cast @TimeNonce @Timestamp
+        push @4
+        if IsLe then do
+            -- If an order has been expired
+            -- 1. Remove a hash from OrderDict
+            roll @4
+            dictDelIgnore
+            rollRev @3
+            -- 2. Copy new TimestampDict where an element already removed
+            swap
+            drop
+            dup
+        else do
+            -- Push empty dictionary to stop iterating
+            drop >> drop
+            newDict @TimeNonce @(Hash SignMsgBody)
+    swap
+    drop
 
 -- | Return true if nonces equal.
 compareNonces :: Nonce & Nonce & s :-> Bool & s
@@ -144,9 +174,11 @@ filterValidSignatures = do
 
 
 extendOrder
-    :: Word32 & AccumPkDict & Hash SignMsgBody & Cell SignMsgBody & OrderDict & s
-    :-> OrderDict & s
+    :: Nonce & TimestampDict & Word32 & AccumPkDict & Hash SignMsgBody & Cell SignMsgBody & OrderDict & s
+    :-> TimestampDict & OrderDict & s
 extendOrder = do
+    rollRev @6
+    rollRev @6
     push @2
     push @5
     dictGet
@@ -171,39 +203,62 @@ extendOrder = do
     cast @AccumPkDict @(DSet PublicKey)
     swap
     dictMerge
-
     if IsJust then do
         -- when not enough signatures
-        stacktype' @[DSet PublicKey, Bool, Hash SignMsgBody, Cell SignMsgBody, OrderDict]
+        stacktype' @[DSet PublicKey, Bool, Hash SignMsgBody, Cell SignMsgBody, OrderDict, Nonce, TimestampDict]
         rollRev @4
         rollRev @4
         moveOnTop @3
         moveOnTop @2
-        stacktype' @[Cell SignMsgBody, DSet PublicKey, Hash SignMsgBody, OrderDict, Bool]
-        dictEncodeSet
-        swap
-        ifElse addToTimestampSet ignore
+        dup
+        rollRev @7
+        push @2
+        rollRev @8
+        stacktype' @[Cell SignMsgBody, DSet PublicKey, Hash SignMsgBody, OrderDict, Bool, Nonce, TimestampDict, Cell SignMsgBody, Hash SignMsgBody]
+        dictEncodeSet @(Hash SignMsgBody) @Order
+        rollRev @5
+        roll @4
+        roll @4
+        roll @2
+        stacktype' @[Bool, Cell SignMsgBody, Hash SignMsgBody,  Nonce, TimestampDict, OrderDict]
+        ifElse addToTimestampSet (drop >> drop >> drop)
     else do
+        stacktype' @[Bool, Hash SignMsgBody, Cell SignMsgBody, OrderDict, Nonce, TimestampDict]
         swap
         moveOnTop @3
         dictDelIgnore
-        swap
-        ifElse ignore removeFromTimestampSet
-        swap
+        moveOnTop @2
+        stacktype' @[Cell SignMsgBody, OrderDict, Bool, Nonce, TimestampDict]
         decodeFromCell @SignMsgBody
         pushInt 0 -- msg type = 0
         sendRawMsg
-        drop
+        stacktype' @[Timestamp, OrderDict, Bool, Nonce, TimestampDict]
+        rollRev @2
+        rollRev @4
+        ifElse (drop >> drop) removeFromTimestampSet
 
--- TODO Add to set to perform garbage collection effectively
-addToTimestampSet :: x & s :-> x & s
-addToTimestampSet = ignore
+-- Add to set to perform garbage collection effectively
+addToTimestampSet :: Cell SignMsgBody & Hash SignMsgBody & Nonce & TimestampDict & s :-> TimestampDict & s
+addToTimestampSet = do
+    getExpirationTime
+    lshift 32
+    cast @Timestamp @Nonce
+    roll @2
+    add
+    cast @Nonce @TimeNonce
+    stacktype' @[TimeNonce, Hash SignMsgBody, TimestampDict]
+    roll @2
+    dictSet
 
--- TODO
-removeFromTimestampSet :: x & s :-> x & s
-removeFromTimestampSet = ignore
-
-
+-- Remove from set expired entry
+removeFromTimestampSet :: Timestamp & Nonce & TimestampDict & s :-> TimestampDict & s
+removeFromTimestampSet = do
+    lshift 32
+    cast @Timestamp @Nonce
+    add
+    cast @Nonce @TimeNonce
+    swap
+    dictDelIgnore
 
 --
 -- Getter methods
@@ -218,6 +273,7 @@ getAllOrders = do
     comment "Get all orders"
     pushRoot
     decodeFromCell @Storage
+    drop
     rollRev @3
     drop >> drop >> drop
     cast @OrderDict @AccumOrderDict
@@ -228,6 +284,7 @@ getOrdersByKey = do
     comment "Get orders by key"
     pushRoot
     decodeFromCell @Storage
+    drop
     rollRev @3
     drop >> drop >> drop
     newDict

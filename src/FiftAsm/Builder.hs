@@ -45,6 +45,7 @@ buildInstr (XC2PU (_ :: Proxy i) (_ :: Proxy j) (_ :: Proxy k)) =
 
 buildInstr PUSHROOT = "PUSHROOT"
 buildInstr POPROOT = "POPROOT"
+buildInstr ADD = "ADD"
 buildInstr INC = "INC"
 buildInstr EQUAL = "EQUAL"
 buildInstr GEQ = "GEQ"
