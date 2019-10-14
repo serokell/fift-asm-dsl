@@ -85,7 +85,7 @@ buildInstr (IFELSE t f)
     = "IF:<{\n" <> indentF indentation (buildInstr t) <>
     "}>ELSE<{\n" <> indentF indentation (buildInstr f)
     <> "}>\n"
-buildInstr (FMAP_MAYBE act) = "IF:<{\n" <> indentF indentation (buildInstr act) <> "}>\n"
+buildInstr (FMAP_MAYBE act) = "IF:<{\n" <> indentF indentation (buildInstr act) <> " TRUE }>ELSE<{ FALSE }>\n"
 buildInstr JUST    = "1 INT"
 buildInstr NOTHING = "0 INT"
 buildInstr (WHILE inv body)
