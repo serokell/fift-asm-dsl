@@ -38,10 +38,13 @@ module FiftAsm.DSL
        , true
        , false
        , pop
+       , nip
        , moveOnTop
        , rollRev
        , roll
        , reversePrefix
+       , xchg
+       , xcpu
 
        , pushRoot
        , popRoot
@@ -61,6 +64,7 @@ module FiftAsm.DSL
 
        , dataHash
        , cellHash
+       , sliceHash
        , chkSignS
        , chkSignU
 
@@ -240,6 +244,13 @@ pop :: forall (i :: Nat) s .
     => s :-> PopTF i s
 pop = mkI (POP (Proxy @i))
 
+nip ::
+    ( ProhibitMaybeTF (ToTVM a)
+    , ProhibitMaybeTF (ToTVM b)
+    )
+    => a & b & s :-> a & s
+nip = pop @1
+
 rollRev
     :: forall (n :: Nat) s .
     ( ProhibitMaybes (Take n (ToTVMs s)), 1 <= n
@@ -277,6 +288,23 @@ reversePrefix
     )
     => s :-> s'
 reversePrefix = mkI (REVERSE_PREFIX (Proxy @n))
+
+xchg
+  :: forall (i :: Nat) s .
+  ( ProhibitMaybes (Take i (ToTVMs s)), 1 <= i, KnownNat i
+  , XchgTF i (ToTVMs s) ~ ToTVMs (XchgTF i s)
+  )
+  => s :-> XchgTF i s
+xchg = mkI (XCHG (Proxy @i))
+
+xcpu
+  :: forall (i :: Nat) (j :: Nat) s .
+  ( ProhibitMaybes (Take i (ToTVMs s)), ProhibitMaybes (Take j (ToTVMs s))
+  , PushTF j (XchgTF i (ToTVMs s)) ~ ToTVMs (PushTF j (XchgTF i s))
+  , 1 <= i, KnownNat i, KnownNat j)
+  => s :-> PushTF j (XchgTF i s)
+xcpu = mkI (XCPU (Proxy @i) (Proxy @j))
+
 
 pushRoot :: forall a s . s :-> (Cell a & s)
 pushRoot = mkI PUSHROOT
@@ -322,6 +350,9 @@ dataHash = mkI SHA256U
 
 cellHash :: Cell a & s :-> Hash a & s
 cellHash = mkI HASHCU
+
+sliceHash :: Slice & s :-> Hash Slice & s
+sliceHash = mkI HASHSU
 
 chkSignS :: PublicKey & Signature & Slice & s :-> Bool & s
 chkSignS = mkI CHKSIGNS

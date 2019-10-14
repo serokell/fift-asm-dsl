@@ -33,6 +33,10 @@ buildInstr DROP = "DROP"
 buildInstr (ROLL (_ :: Proxy n)) = buildWithInt (natVal @n @Proxy Proxy) "ROLL"
 buildInstr (ROLLREV (_ :: Proxy n)) = buildWithInt (natVal @n @Proxy Proxy) "ROLLREV"
 buildInstr (REVERSE_PREFIX (_ :: Proxy n)) = buildWithInt (natVal @n @Proxy Proxy) "0 REVERSE"
+buildInstr (XCHG (_ :: Proxy i)) = "s" <> buildWithInt (natVal @i @Proxy Proxy) "XCHG"
+buildInstr (XCPU (_ :: Proxy i) (_ :: Proxy j)) =
+    "s"+|natVal @i @Proxy Proxy|+" s"+|natVal @j @Proxy Proxy|+" XCPU"
+
 buildInstr PUSHROOT = "PUSHROOT"
 buildInstr POPROOT = "POPROOT"
 buildInstr INC = "INC"
@@ -80,6 +84,7 @@ buildInstr (WHILE inv body)
 buildInstr (THROWIF e)    = buildWithInt (fromEnum e) "THROWIF"
 buildInstr (THROWIFNOT e) = buildWithInt (fromEnum e) "THROWIFNOT"
 buildInstr HASHCU   = "HASHCU"
+buildInstr HASHSU   = "HASHSU"
 buildInstr SHA256U  = "SHA256U"
 buildInstr CHKSIGNS = "CHKSIGNS"
 buildInstr CHKSIGNU = "CHKSIGNU"
@@ -92,4 +97,3 @@ buildInstr (CALL s)  = "" +| s |+ " CALL"
 
 buildWithInt :: (Num a, Buildable a) => a -> Text -> Builder
 buildWithInt x instr = "" +| x |+ " " +| instr |+ ""
-

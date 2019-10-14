@@ -10,6 +10,7 @@ module FiftAsm.Instr
     , PopTF
     , RollRevTF
     , RollTF
+    , XchgTF
     ) where
 
 import GHC.TypeLits (TypeError, ErrorMessage (..), type (-), type (+), type (<=))
@@ -47,6 +48,15 @@ data Instr (inp :: [T]) (out :: [T]) where
     REVERSE_PREFIX
         :: forall (n :: Nat) s . (ProhibitMaybes (Take n s), 2 <= n, KnownNat n)
         => Proxy n -> Instr s (Reverse (Take n s) ++ Drop n s)
+    XCHG :: forall (i :: Nat) s .
+            ( ProhibitMaybes (Take i s), 1 <= i, KnownNat i )
+         => Proxy i -> Instr s (XchgTF i s)
+    XCPU :: forall (i :: Nat) (j :: Nat) s .
+            ( ProhibitMaybes (Take i s), ProhibitMaybes (Take j s)
+            , 1 <= i, KnownNat i, KnownNat j)
+         => Proxy i -> Proxy j -> Instr s (PushTF j (XchgTF i s))
+
+
 
     PUSHROOT :: Instr s ('CellT & s)
     POPROOT  :: Instr ('CellT & s) s
@@ -105,6 +115,7 @@ data Instr (inp :: [T]) (out :: [T]) where
 
     -- hashes
     HASHCU  :: Instr ('CellT & s) ('IntT & s)  -- hashing a Cell
+    HASHSU  :: Instr ('SliceT & s) ('IntT & s)  -- hashing a Slice
     SHA256U :: Instr ('SliceT & s) ('IntT & s) -- hashing only Data bits of slice
     CHKSIGNS :: Instr ('IntT & 'SliceT & 'SliceT & s) ('IntT & s)
     CHKSIGNU :: Instr ('IntT & 'SliceT & 'IntT & s) ('IntT & s)
@@ -129,6 +140,7 @@ type RollTF n s = Head (Drop n s) ': Take n s ++ Drop (n + 1) s
 
 type RollRevTF n s = Take n (Drop 1 s) ++ (Head s ': Drop (n + 1) s)
 
+type XchgTF n s = Head (Drop n s) ': Drop 1 (Take n s) ++ (Head s ': Drop (n + 1) s)
 
 type ProhibitMaybes (xs :: [T]) = RecAll_ xs ProhibitMaybe
 
