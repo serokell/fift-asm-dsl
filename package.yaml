@@ -76,6 +76,7 @@ library:
     - array
     - bytestring
     - containers
+    - ghc-typelits-extra
     - vinyl
     - fmt
 

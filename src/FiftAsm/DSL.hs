@@ -44,7 +44,10 @@ module FiftAsm.DSL
        , roll
        , reversePrefix
        , xchg
+       , xchg'
+       , xchg2
        , xcpu
+       , xc2pu
 
        , pushRoot
        , popRoot
@@ -99,6 +102,7 @@ import Prelude
 
 import qualified Data.Kind as Kind
 import GHC.TypeLits (type (+), type (<=))
+import GHC.TypeLits.Extra (Max)
 import Data.Typeable (typeRep, typeRepFingerprint)
 import qualified Data.Map as M
 
@@ -293,18 +297,42 @@ reversePrefix = mkI (REVERSE_PREFIX (Proxy @n))
 xchg
   :: forall (i :: Nat) s .
   ( ProhibitMaybes (Take i (ToTVMs s)), 1 <= i, KnownNat i
-  , XchgTF i (ToTVMs s) ~ ToTVMs (XchgTF i s)
+  , XchgTF 0 i (ToTVMs s) ~ ToTVMs (XchgTF 0 i s)
   )
-  => s :-> XchgTF i s
+  => s :-> XchgTF 0 i s
 xchg = mkI (XCHG (Proxy @i))
+
+xchg'
+  :: forall (i :: Nat) (j :: Nat) s .
+  ( ProhibitMaybes (Take (Max i j) (ToTVMs s)), KnownNat i, KnownNat j
+  , XchgTF i j (ToTVMs s) ~ ToTVMs (XchgTF i j s)
+  )
+  => s :-> XchgTF i j s
+xchg' = mkI (XCHG' (Proxy @i) (Proxy @j))
+
+xchg2
+  :: forall (i :: Nat) (j :: Nat) s .
+  ( ProhibitMaybes (Take (Max i j) (ToTVMs s)), KnownNat i, KnownNat j
+  , Xchg2TF i j (ToTVMs s) ~ ToTVMs (Xchg2TF i j s)
+  )
+  => s :-> Xchg2TF i j s
+xchg2 = mkI (XCHG2 (Proxy @i) (Proxy @j))
 
 xcpu
   :: forall (i :: Nat) (j :: Nat) s .
-  ( ProhibitMaybes (Take i (ToTVMs s)), ProhibitMaybes (Take j (ToTVMs s))
-  , PushTF j (XchgTF i (ToTVMs s)) ~ ToTVMs (PushTF j (XchgTF i s))
-  , 1 <= i, KnownNat i, KnownNat j)
-  => s :-> PushTF j (XchgTF i s)
+  ( ProhibitMaybes (Take (Max i j) (ToTVMs s))
+  , PushTF j (XchgTF 0 i (ToTVMs s)) ~ ToTVMs (PushTF j (XchgTF 0 i s))
+  , KnownNat i, KnownNat j)
+  => s :-> PushTF j (XchgTF 0 i s)
 xcpu = mkI (XCPU (Proxy @i) (Proxy @j))
+
+xc2pu
+  :: forall (i :: Nat) (j :: Nat) (k :: Nat) s .
+  ( ProhibitMaybes (Take (Max (Max i j) k) (ToTVMs s))
+  , PushTF k (Xchg2TF i j (ToTVMs s)) ~ ToTVMs (PushTF k (Xchg2TF i j s))
+  , KnownNat i, KnownNat j, KnownNat k)
+  => s :-> PushTF k (Xchg2TF i j s)
+xc2pu = mkI (XC2PU (Proxy @i) (Proxy @j) (Proxy @k))
 
 
 pushRoot :: forall a s . s :-> (Cell a & s)

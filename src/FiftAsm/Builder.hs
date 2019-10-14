@@ -33,9 +33,15 @@ buildInstr DROP = "DROP"
 buildInstr (ROLL (_ :: Proxy n)) = buildWithInt (natVal @n @Proxy Proxy) "ROLL"
 buildInstr (ROLLREV (_ :: Proxy n)) = buildWithInt (natVal @n @Proxy Proxy) "ROLLREV"
 buildInstr (REVERSE_PREFIX (_ :: Proxy n)) = buildWithInt (natVal @n @Proxy Proxy) "0 REVERSE"
-buildInstr (XCHG (_ :: Proxy i)) = "s" <> buildWithInt (natVal @i @Proxy Proxy) "XCHG"
+buildInstr (XCHG (_ :: Proxy i)) = "s0 s" <> buildWithInt (natVal @i @Proxy Proxy) "XCHG"
+buildInstr (XCHG' (_ :: Proxy i) (_ :: Proxy j)) =
+    "s"+|natVal @i @Proxy Proxy|+" s"+|natVal @j @Proxy Proxy|+" XCHG"
+buildInstr (XCHG2 (_ :: Proxy i) (_ :: Proxy j)) =
+    "s"+|natVal @i @Proxy Proxy|+" s"+|natVal @j @Proxy Proxy|+" XCHG2"
 buildInstr (XCPU (_ :: Proxy i) (_ :: Proxy j)) =
     "s"+|natVal @i @Proxy Proxy|+" s"+|natVal @j @Proxy Proxy|+" XCPU"
+buildInstr (XC2PU (_ :: Proxy i) (_ :: Proxy j) (_ :: Proxy k)) =
+    "s"+|natVal @i @Proxy Proxy|+" s"+|natVal @j @Proxy Proxy|+" s"+|natVal @k @Proxy Proxy|+" XC2PU"
 
 buildInstr PUSHROOT = "PUSHROOT"
 buildInstr POPROOT = "POPROOT"

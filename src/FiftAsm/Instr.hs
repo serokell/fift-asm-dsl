@@ -11,9 +11,11 @@ module FiftAsm.Instr
     , RollRevTF
     , RollTF
     , XchgTF
+    , Xchg2TF
     ) where
 
 import GHC.TypeLits (TypeError, ErrorMessage (..), type (-), type (+), type (<=))
+import GHC.TypeLits.Extra (Max, Min)
 import Data.Vinyl.TypeLevel (type (++))
 import Fmt (Buildable)
 
@@ -48,13 +50,27 @@ data Instr (inp :: [T]) (out :: [T]) where
     REVERSE_PREFIX
         :: forall (n :: Nat) s . (ProhibitMaybes (Take n s), 2 <= n, KnownNat n)
         => Proxy n -> Instr s (Reverse (Take n s) ++ Drop n s)
-    XCHG :: forall (i :: Nat) s .
-            ( ProhibitMaybes (Take i s), 1 <= i, KnownNat i )
-         => Proxy i -> Instr s (XchgTF i s)
-    XCPU :: forall (i :: Nat) (j :: Nat) s .
-            ( ProhibitMaybes (Take i s), ProhibitMaybes (Take j s)
-            , 1 <= i, KnownNat i, KnownNat j)
-         => Proxy i -> Proxy j -> Instr s (PushTF j (XchgTF i s))
+    XCHG
+      :: forall (i :: Nat) s .
+      ( ProhibitMaybes (Take i s), 1 <= i, KnownNat i )
+      => Proxy i -> Instr s (XchgTF 0 i s)
+    XCHG'
+      :: forall (i :: Nat) (j :: Nat) s .
+      ( ProhibitMaybes (Take (Max i j) s), KnownNat i, KnownNat j
+      ) => Proxy i -> Proxy j -> Instr s (XchgTF i j s)
+    XCHG2
+      :: forall (i :: Nat) (j :: Nat) s .
+      ( ProhibitMaybes (Take (Max i j) s), KnownNat i, KnownNat j
+      ) => Proxy i -> Proxy j -> Instr s (Xchg2TF i j s)
+    XCPU
+      :: forall (i :: Nat) (j :: Nat) s .
+      ( ProhibitMaybes (Take (Max i j) s), KnownNat i, KnownNat j
+      ) => Proxy i -> Proxy j -> Instr s (PushTF j (XchgTF 0 i s))
+    XC2PU
+      :: forall (i :: Nat) (j :: Nat) (k :: Nat) s .
+      ( ProhibitMaybes (Take (Max (Max i j) k) s)
+      , KnownNat i, KnownNat j, KnownNat k
+      ) => Proxy i -> Proxy j -> Proxy k -> Instr s (PushTF k (Xchg2TF i j s))
 
 
 
@@ -144,7 +160,10 @@ type RollTF n s = Head (Drop n s) ': Take n s ++ Drop (n + 1) s
 
 type RollRevTF n s = Take n (Drop 1 s) ++ (Head s ': Drop (n + 1) s)
 
-type XchgTF n s = Head (Drop n s) ': Drop 1 (Take n s) ++ (Head s ': Drop (n + 1) s)
+type XchgTF i j s =
+  Take (Min i j) s ++ (Head (Drop (Max i j) s) ': Take (Max i j - Min i j - 1) (Drop (Min i j + 1) s) ++ (Head (Drop (Min i j) s) ': Drop (Max i j + 1) s))
+
+type Xchg2TF i j s = XchgTF 0 j (XchgTF 1 i s)
 
 type ProhibitMaybes (xs :: [T]) = RecAll_ xs ProhibitMaybe
 
