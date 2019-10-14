@@ -268,6 +268,18 @@ rollRev
     => s :-> RollRevTF n s
 rollRev = mkI (ROLLREV (Proxy @n))
 
+-- | Check @2 roll ~ rot@
+_rollTest
+  :: ProhibitMaybes (ToTVMs '[x, y, z])
+  => '[z, y, x] :-> '[x, z, y]
+_rollTest = roll @2
+
+-- | Check @2 rollRev ~ rot rot@
+_rollRevTest
+  :: ProhibitMaybes (ToTVMs '[x, y, z])
+  => '[z, y, x] :-> '[y, x, z]
+_rollRevTest = rollRev @2
+
 roll
     :: forall (n :: Nat) s .
     ( ProhibitMaybes (Take n (ToTVMs s)), 1 <= n
