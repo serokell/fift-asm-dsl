@@ -126,9 +126,9 @@ filterValidSignatures = do
         else do
             stacktype' @[PublicKey, Signature, SignDict, AccumPkDict, Hash SignMsgBody, DSet PublicKey]
             dup
-            roll @3
+            rollRev @2
             push @5
-            roll @3
+            rollRev @2
             chkSignU
             stacktype' @[Bool, PublicKey, SignDict, AccumPkDict, Hash SignMsgBody, DSet PublicKey]
             if Holds then do
@@ -159,13 +159,13 @@ extendOrder = do
         moveOnTop @2
         swap
         false -- not new one
-        roll @4
+        rollRev @3
         --                                                    v whether new order or not
     else do
         swap
         newDict
         true -- new one
-        roll @4
+        rollRev @3
 
     swap
     cast @AccumPkDict @(DSet PublicKey)
@@ -175,8 +175,8 @@ extendOrder = do
     if IsJust then do
         -- when not enough signatures
         stacktype' @[DSet PublicKey, Bool, Hash SignMsgBody, Cell SignMsgBody, OrderDict]
-        roll @5
-        roll @5
+        rollRev @4
+        rollRev @4
         moveOnTop @3
         moveOnTop @2
         stacktype' @[Cell SignMsgBody, DSet PublicKey, Hash SignMsgBody, OrderDict, Bool]
@@ -218,7 +218,7 @@ getAllOrders = do
     comment "Get all orders"
     pushRoot
     decodeFromCell @Storage
-    roll @4
+    rollRev @3
     drop >> drop >> drop
     cast @OrderDict @AccumOrderDict
 
@@ -228,7 +228,7 @@ getOrdersByKey = do
     comment "Get orders by key"
     pushRoot
     decodeFromCell @Storage
-    roll @4
+    rollRev @3
     drop >> drop >> drop
     newDict
     cast @OrderDict @AccumOrderDict
@@ -245,8 +245,8 @@ getOrdersByKey = do
           moveOnTop @3
           moveOnTop @4
           cast @AccumOrderDict @OrderDict
-          roll @5
-          roll @5
+          rollRev @4
+          rollRev @4
           stacktype' @'[DSet PublicKey, Cell SignMsgBody, Hash SignMsgBody, {-Accum-}OrderDict, OrderDict]
           swap
           dictEncodeSet

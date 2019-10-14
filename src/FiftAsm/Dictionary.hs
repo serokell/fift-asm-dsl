@@ -115,7 +115,7 @@ dsetGet = do
 dsetSet :: forall k s . (DictOperations k (), ProhibitMaybe (ToTVM k)) => DSet k & k & s :-> DSet k & s
 dsetSet = do
     unit
-    roll @3
+    rollRev @2
     dictSet
 
 dictDelIgnore :: forall k v s . DictOperations k v => Dict k v & k & s :-> Dict k v & s
@@ -212,7 +212,7 @@ dictSize = viaSubroutine @'[Dict k v, Word32] @'[Mb '[Size]] "dictSize" $ do
             drop
             newDict @k @v
     dup
-    roll @3
+    rollRev @2
     stacktype' @[Size, Word32, Size]
     cast @Size @Word32
     geqInt
@@ -243,7 +243,7 @@ dictMerge = do
     if Holds then do
         drop
         dup
-        roll @3
+        rollRev @2
         dictSize
         if IsJust then
             drop >> just @'[Dict k v]
@@ -275,7 +275,7 @@ dictMerge = do
                 else do
                     moveOnTop @4
                     dictSet
-                    rollRev @3
+                    roll @2
                     inc
                     dup
                     cast @Size @Word32
@@ -283,14 +283,14 @@ dictMerge = do
                     leqInt
                     -- Check if a current size is not less than k
                     if NotHolds then
-                        rollRev @3
+                        roll @2
                     else do
-                        rollRev @3
+                        roll @2
                         drop
                         newDict @k @v
             stacktype' @[Size, Dict k v, Word32]
             cast @Size @Word32
-            rollRev @3
+            roll @2
             if IsLe then
                 drop >> nothing
             else

@@ -258,15 +258,15 @@ roll
     => s :-> RollTF n s
 roll = mkI (ROLL (Proxy @n))
 
--- equal to ROLLREV (i + 1)
+-- equal to ROLL i
 moveOnTop
     :: forall (i :: Nat) s .
-    ( ProhibitMaybes (Take (i + 1) (ToTVMs s)), 1 <= i + 1
-    , RollRevTF (i + 1) (ToTVMs s) ~ ToTVMs (RollRevTF (i + 1) s)
-    , KnownNat (i + 1)
+    ( ProhibitMaybes (Take i (ToTVMs s)), 1 <= i
+    , RollTF i (ToTVMs s) ~ ToTVMs (RollTF i s)
+    , KnownNat i
     )
-    => s :-> RollRevTF (i + 1) s
-moveOnTop = rollRev @(i + 1)
+    => s :-> RollTF i s
+moveOnTop = roll @i
 
 reversePrefix
     :: forall (n :: Nat) s s' .

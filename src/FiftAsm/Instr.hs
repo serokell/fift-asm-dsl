@@ -125,9 +125,10 @@ type family PushTF (n :: Nat) (xs :: [k]) where
     PushTF 0 (x ': xs) = x ': x ': xs
     PushTF n (y ': xs) = Swap (y ': PushTF (n - 1) xs)
 
-type RollRevTF n s = (Head (Drop (n - 1) s) ': Take (n - 1) s) ++ Drop n s
+type RollTF n s = Head (Drop n s) ': Take n s ++ Drop (n + 1) s
 
-type RollTF n s = Take (n - 1) (Drop 1 s) ++ (Head s ': Drop n s)
+type RollRevTF n s = Take n (Drop 1 s) ++ (Head s ': Drop (n + 1) s)
+
 
 type ProhibitMaybes (xs :: [T]) = RecAll_ xs ProhibitMaybe
 
