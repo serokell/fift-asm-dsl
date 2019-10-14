@@ -363,10 +363,10 @@ stSlice :: forall a s . ToTVM a ~ 'SliceT => Builder & a & s :-> Builder & s
 stSlice = mkI STSLICE
 
 ld32Unsigned :: forall a s . ToTVM a ~ 'IntT => Slice & s :-> Slice & a & s
-ld32Unsigned = mkI (LDU 31)
+ld32Unsigned = mkI (LDU 32)
 
 pld32Unsigned :: forall a s . ToTVM a ~ 'IntT => Slice & s :-> a & s
-pld32Unsigned = mkI (PLDU 31)
+pld32Unsigned = mkI (PLDU 32)
 
 st32Unsigned :: forall a s . ToTVM a ~ 'IntT => Builder & a & s :-> Builder & s
 st32Unsigned = mkI (STU 31)
