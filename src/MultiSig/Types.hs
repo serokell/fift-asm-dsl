@@ -6,8 +6,8 @@
 -- These types are only defined for clarity.
 
 module MultiSig.Types
-       ( Msg (..)
-       , MsgBody (..)
+       ( SignMsg (..)
+       , SignMsgBody (..)
        , Storage (..)
        , Order (..)
        , Nonce (..)
@@ -25,39 +25,40 @@ newtype Nonce = Nonce Word32
 type instance ToTVM Nonce = 'IntT
 
 instance DecodeSlice Nonce where
-    decodeFromSlice = ld32Unsigned
+    decodeFromSliceImpl = ld32Unsigned
 
 instance EncodeBuilder Nonce where
     encodeToBuilder = st32Unsigned
 
+
 -- Msg part
 type SignDict = Dict PublicKey Signature
-data Msg = Msg
+data SignMsg = SignMsg
     { msgNonce      :: Nonce
     , msgSignatures :: SignDict
-    , msgBody       :: Cell MsgBody
+    , msgBody       :: Cell SignMsgBody
     }
 
-data MsgBody = MsgBody
+data SignMsgBody = SignMsgBody
     { mbExpiration :: Timestamp
     , mbMsgObj     :: Cell MessageObject
     }
 
-instance DecodeSlice Msg where
-    type DecodeSliceFields Msg = [Cell MsgBody, SignDict, Nonce]
-    decodeFromSlice = do
-        decodeFromSlice @Nonce
-        decodeFromSlice @SignDict
-        decodeFromSlice @(Cell MsgBody)
+instance DecodeSlice SignMsg where
+    type DecodeSliceFields SignMsg = [Cell SignMsgBody, SignDict, Nonce]
+    decodeFromSliceImpl = do
+        decodeFromSliceImpl @Nonce
+        decodeFromSliceImpl @SignDict
+        decodeFromSliceImpl @(Cell SignMsgBody)
 
-instance DecodeSlice MsgBody where
-    type DecodeSliceFields MsgBody = [Cell MessageObject, Timestamp]
-    decodeFromSlice = do
-        decodeFromSlice @Timestamp
-        decodeFromSlice @(Cell MessageObject)
+instance DecodeSlice SignMsgBody where
+    type DecodeSliceFields SignMsgBody = [Cell MessageObject, Timestamp]
+    decodeFromSliceImpl = do
+        decodeFromSliceImpl @Timestamp
+        decodeFromSliceImpl @(Cell MessageObject)
 
 -- Storage part
-type OrderDict =  Dict (Hash MsgBody) Order
+type OrderDict =  Dict (Hash SignMsgBody) Order
 data Storage = Storage
     { sOrders :: OrderDict
     , sNonce  :: Nonce
@@ -66,17 +67,17 @@ data Storage = Storage
     }
 
 data Order = Order
-    { oMsgBody    :: Cell MsgBody
-    , oSignatures :: DSet Signature
+    { oMsgBody    :: Cell SignMsgBody
+    , oApproved   :: DSet PublicKey
     }
 
 instance DecodeSlice Storage where
     type DecodeSliceFields Storage = [OrderDict, DSet PublicKey, Word32, Nonce]
-    decodeFromSlice = do
-        decodeFromSlice @Nonce
-        decodeFromSlice @Word32
-        decodeFromSlice @(DSet PublicKey)
-        decodeFromSlice @OrderDict
+    decodeFromSliceImpl = do
+        decodeFromSliceImpl @Nonce
+        decodeFromSliceImpl @Word32
+        decodeFromSliceImpl @(DSet PublicKey)
+        decodeFromSliceImpl @OrderDict
 
 instance EncodeBuilder Storage where
     encodeToBuilder = do
@@ -86,15 +87,15 @@ instance EncodeBuilder Storage where
         encodeToBuilder @OrderDict
 
 instance DecodeSlice Order where
-    type DecodeSliceFields Order = [DSet Signature, Cell MsgBody]
-    decodeFromSlice = do
-        decodeFromSlice @(Cell MsgBody)
-        decodeFromSlice @(DSet Signature)
+    type DecodeSliceFields Order = [DSet PublicKey, Cell SignMsgBody]
+    decodeFromSliceImpl = do
+        decodeFromSliceImpl @(Cell SignMsgBody)
+        decodeFromSliceImpl @(DSet PublicKey)
 
 instance EncodeBuilder Order where
     encodeToBuilder = do
-        encodeToBuilder @(Cell MsgBody)
-        encodeToBuilder @(DSet Signature)
+        encodeToBuilder @(Cell SignMsgBody)
+        encodeToBuilder @(DSet PublicKey)
 
 type instance ToTVM Order = 'SliceT
 
@@ -102,6 +103,7 @@ data MultiSigError
     = NonceMismatch
     | MsgExpired
     | NoValidSignatures
+    | ErrorParsingMsg
     deriving (Eq, Ord, Show, Generic)
 
 instance Exception MultiSigError
@@ -110,8 +112,10 @@ instance Enum MultiSigError where
     toEnum 32 = NonceMismatch
     toEnum 33 = MsgExpired
     toEnum 34 = NoValidSignatures
+    toEnum 35 = ErrorParsingMsg
     toEnum _ = error "Uknown MultiSigError id"
 
     fromEnum NonceMismatch = 32
     fromEnum MsgExpired = 33
     fromEnum NoValidSignatures = 34
+    fromEnum ErrorParsingMsg = 35

@@ -5,6 +5,7 @@ module FiftAsm.Instr
     , Bits (..)
     , ProhibitMaybe
     , ProhibitMaybes
+    , ProhibitMaybeTF
     , PushTF
     , PopTF
     , RollRevTF
@@ -45,7 +46,7 @@ data Instr (inp :: [T]) (out :: [T]) where
     -- Custom instruction which is translated to REVERSE i+2, j
     REVERSE_PREFIX
         :: forall (n :: Nat) s . (ProhibitMaybes (Take n s), 2 <= n, KnownNat n)
-        => Proxy n -> Instr s (Reverse (Take n s))
+        => Proxy n -> Instr s (Reverse (Take n s) ++ Drop n s)
 
     PUSHROOT :: Instr s ('CellT & s)
     POPROOT  :: Instr ('CellT & s) s
@@ -100,6 +101,7 @@ data Instr (inp :: [T]) (out :: [T]) where
     WHILE      :: Instr s ('IntT & s) -> Instr s s -> Instr s s
     THROWIFNOT :: (Enum e, Exception e) => e -> Instr ('IntT & s) s
     THROWIF    :: (Enum e, Exception e) => e -> Instr ('IntT & s) s
+    THROW      :: (Enum e, Exception e) => e -> Instr s t
 
     -- hashes
     HASHCU  :: Instr ('CellT & s) ('IntT & s)  -- hashing a Cell
@@ -109,6 +111,11 @@ data Instr (inp :: [T]) (out :: [T]) where
 
     NOW :: Instr s ('IntT & s)
     SENDRAWMSG :: Instr ('IntT & 'CellT & s) s
+
+    PAIR :: Instr (a & b & s) ('TupleT [a, b] & s)
+    UNPAIR :: Instr ('TupleT [a, b] & s) (a & b & s)
+
+    CALL :: String -> Instr s t
 
 deriving instance Show (Instr a b)
 

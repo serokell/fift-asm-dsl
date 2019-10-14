@@ -17,10 +17,13 @@ module FiftAsm.Dictionary
        , dsetSet
        , dictDelIgnore
        , dictEmpty
-       , dickSize
+       , dictSize
        , dictMerge
+
+       , dictEncodeSet
        ) where
 
+import Data.Vinyl.TypeLevel (type (++))
 import Prelude
 
 import FiftAsm.Instr
@@ -37,7 +40,7 @@ newtype Size = Size Word32
 type instance ToTVM Size = 'IntT
 
 instance DecodeSlice (Dict k v) where
-    decodeFromSlice = ldDict
+    decodeFromSliceImpl = ldDict
 
 instance EncodeBuilder (Dict k v) where
     encodeToBuilder = stDict
@@ -55,34 +58,53 @@ class (ToTVM k ~ tvmk, ToTVM v ~ tvmv, IsUnsignedTF k ~ isUnsignedFlag)
     dictSet' :: Dict k v & k & v & s :-> Dict k v & s
     dictDel' :: Dict k v & k & s :-> Bool & Dict k v & s
 
-instance (ToTVM k ~ 'SliceT, ToTVM v ~ 'SliceT, IsUnsignedTF k ~ 'False, KnownNat (BitSize k))
-        => DictOperations' 'SliceT 'SliceT 'False k v where
+instance
+  ( ToTVM k ~ 'SliceT
+  , ToTVM v ~ 'SliceT
+  , IsUnsignedTF k ~ 'False
+  , KnownNat (BitSize k)
+  )
+  => DictOperations' 'SliceT 'SliceT 'False k v where
     dictGet' = do
         pushInt (bitSize @k)
-        I DICTGET
+        mkI DICTGET
     dictSet' = do
         pushInt (bitSize @k)
-        I DICTSET
+        mkI DICTSET
     dictDel' = do
         pushInt (bitSize @k)
-        I DICTDEL
+        mkI DICTDEL
 
 instance (ToTVM k ~ 'IntT, ToTVM v ~ 'SliceT, IsUnsignedTF k ~ 'True, KnownNat (BitSize k))
         => DictOperations' 'IntT 'SliceT 'True k v where
     dictGet' = do
         pushInt (bitSize @k)
-        I DICTUGET
+        mkI DICTUGET
     dictSet' = do
         pushInt (bitSize @k)
-        I DICTUSET
+        mkI DICTUSET
     dictDel' = do
         pushInt (bitSize @k)
-        I DICTUDEL
+        mkI DICTUDEL
 
 instance DictOperations' (ToTVM k) (ToTVM v) (IsUnsignedTF k) k v => DictOperations k v where
     dictGet = dictGet'
     dictSet = dictSet'
     dictDel = dictDel'
+
+dictEncodeSet
+  :: forall k v s .
+    ( EncodeBuilder v
+    , ProhibitMaybeTF (ToTVM v)
+    , ProhibitMaybeTF (ToTVM k)
+    , DictOperations k v
+    )
+  => EncodeBuilderFields v ++ (k & Dict k v & s) :-> Dict k v & s
+dictEncodeSet = do
+    encodeToSlice @v @(k & Dict k v & s)
+    cast @Slice @v
+    reversePrefix @3
+    dictSet @k @v
 
 dsetGet :: forall k s . DictOperations k () => DSet k & k & s :-> Bool & s
 dsetGet = do
@@ -102,47 +124,50 @@ dictDelIgnore = do
     drop
 
 newDict :: forall k v s . s :-> Dict k v & s
-newDict = I NEWDICT
+newDict = mkI NEWDICT
 
 ldDict :: forall k v s . Slice & s :-> Slice & Dict k v & s
-ldDict = I LDDICT
+ldDict = mkI LDDICT
 
 stDict :: forall k v s . Builder & Dict k v & s :-> Builder & s
-stDict = I STDICT
+stDict = mkI STDICT
 
 type DictRemMinC k v =
     ( DecodeSlice k, DecodeSlice v, KnownNat (BitSize k)
-    , DecodeSliceFields k ~ '[k], DecodeSliceFields v ~ '[v]
-    , ProhibitMaybe (ToTVM k), ProhibitMaybe (ToTVM v)
+    , DecodeSliceFields k ~ '[k]
+    , ProhibitMaybe (ToTVM k)
+    , Typeable k
+    , Typeable v
+    , (DecodeSliceFields v ++ '[]) ~ DecodeSliceFields v
+    , Typeable (DecodeSliceFields v)
     )
 
 -- TODO: this function may be extended for DecodeSlice instances
 -- but it seems to be unnecessary for our cases
 dictRemMin
     :: forall k v s . DictRemMinC k v
-    => Dict k v & s :-> (Mb '[ k, v ] & Dict k v & s)
-dictRemMin = do
+    => Dict k v & s :-> (Mb '[ k, Slice ] & Dict k v & s)
+dictRemMin =
+  viaSubroutine @'[Dict k v]
+                @'[Mb '[ k, Slice ], Dict k v]
+                "dictRemMin" $ do
     pushInt (bitSize @k)
-    I DICTREMMIN
-    fmapMaybe @'[Slice, Slice] @'[k, v] $ do
-        decodeFromSliceUnsafe @k
-        swap
-        decodeFromSliceUnsafe @v
-        swap
+    mkI DICTREMMIN
+    fmapMaybe @'[Slice, Slice] @'[k, Slice] $ decodeFromSliceUnsafe @k
 
 -- TODO It's bad idea to pass @Dict k v@ to action
 -- because the action can accedintally modify it.
 -- But I dunno how to eliminate it without DIP.
 -- One of options is to put Dict to temporary register c7
-dictIter
+dictIter'
     :: forall k v s . DictRemMinC k v
-    => (k & v & Dict k v & s :-> Dict k v & s)
-    -> (Dict k v & s :-> s)
-dictIter onEntry = do
+    => k & Slice & Dict k v & s :-> Dict k v & s
+    -> Dict k v & s :-> s
+dictIter' onEntry = do
     comment "Iterate over dictionary"
     dictRemMin @k @v
-    while (I MAYBE_TO_BOOL) $ do
-        ifJust @'[k, v] onEntry ignore
+    while (mkI MAYBE_TO_BOOL) $ do
+        ifJust @'[k, Slice] onEntry ignore
         dictRemMin @k @v
     if IsJust then
         drop >> drop
@@ -150,18 +175,27 @@ dictIter onEntry = do
         ignore
     drop
 
+dictIter
+    :: forall k v s . DictRemMinC k v
+    => DecodeSliceFields v ++ (k & Dict k v & s) :-> Dict k v & s
+    -> Dict k v & s :-> s
+dictIter onEntry = dictIter' $ do
+    swap
+    decodeFromSliceUnsafe @v
+    onEntry
+
 dictEmpty :: Dict k v & s :-> Bool & s
-dictEmpty = I DICTEMPTY
+dictEmpty = mkI DICTEMPTY
 
 -- Returns either Just Size or Nothing if size is not less than passed K.
-dickSize
+dictSize
     :: forall k v s . DictRemMinC k v
     => Dict k v & Word32 & s :-> Mb '[Size] & s
-dickSize = do
+dictSize = viaSubroutine @'[Dict k v, Word32] @'[Mb '[Size]] "dictSize" $ do
     comment "Compute dictionary size"
     pushInt @Size 0
     swap
-    dictIter $ do
+    dictIter' $ do
         drop
         drop
         swap
@@ -187,14 +221,19 @@ dickSize = do
     else
         just @'[Size]
 
--- Returns either Just (Dict k v) or Nothing if size of Dict k v is not less than passed K.
+-- Returns either Just (Dict k v) or Nothing if size of Dict k v is >= K.
 dictMerge
     :: forall k v s .
     ( DictRemMinC k v
     , DictOperations k v
+    , DecodeSliceFields v ~ '[v] -- TODO this restriction can be made lighter
+    , ProhibitMaybe (ToTVM v)
     )
     => Dict k v & Dict k v & Word32 & s :-> Mb '[Dict k v] & s
 dictMerge = do
+  viaSubroutine @'[Dict k v, Dict k v, Word32]
+                @'[Mb '[Dict k v]]
+                "dictMerge" $ do
     comment "Merge two dictionaries"
     dup
     dictEmpty
@@ -205,7 +244,7 @@ dictMerge = do
         drop
         dup
         roll @3
-        dickSize
+        dictSize
         if IsJust then
             drop >> just @'[Dict k v]
         else
@@ -214,7 +253,7 @@ dictMerge = do
         dup
         push @3
         swap
-        dickSize
+        dictSize
         stacktype' @[Mb '[Size], Dict k v, Dict k v, Word32]
         -- If size of the first one is not less that K, then just return Nothing
         if IsNothing then
@@ -225,6 +264,7 @@ dictMerge = do
             moveOnTop @2
             stacktype' @[Dict k v, Size, Dict k v, Word32]
             dictIter $ do
+                swap
                 dup
                 push @3
                 dictGet

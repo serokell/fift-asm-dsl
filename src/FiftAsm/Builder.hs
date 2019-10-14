@@ -1,20 +1,15 @@
 module FiftAsm.Builder
-       ( AsProgram (..)
+       ( buildInstr
+       , indentation
        ) where
 
 import Fmt
 
 import FiftAsm.Instr
-import FiftAsm.DSL ((:->) (..))
 
-newtype AsProgram inp out = AsProgram (inp :-> out)
 
 indentation :: Int
 indentation = 2
-
-instance Buildable (AsProgram inp out) where
-    build (AsProgram (I instr)) =
-        "<{\n" <> indentF indentation (buildInstr instr) <> "}>s"
 
 instance Buildable Natural where
     build = build @Integer . toInteger
@@ -90,6 +85,10 @@ buildInstr CHKSIGNS = "CHKSIGNS"
 buildInstr CHKSIGNU = "CHKSIGNU"
 buildInstr NOW      = "NOW"
 buildInstr SENDRAWMSG = "SENDRAWMSG"
+buildInstr (THROW e) = buildWithInt (fromEnum e) "THROW"
+buildInstr PAIR      = "PAIR"
+buildInstr UNPAIR    = "UNPAIR"
+buildInstr (CALL s)  = "" +| s |+ " CALL"
 
 buildWithInt :: (Num a, Buildable a) => a -> Text -> Builder
 buildWithInt x instr = "" +| x |+ " " +| instr |+ ""
