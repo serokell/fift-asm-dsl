@@ -1,0 +1,95 @@
+// SPDX-FileCopyrightText: 2019 Serokell <https://serokell.io>
+//
+// SPDX-License-Identifier: MPL-2.0
+
+"TonUtil.fif" include
+
+// Returns the rest of the command line as a tuple
+// — Tuple args
+{ $# _next_arg @ - 1+
+  { cmdline_getarg swap } over times tuple
+} : cmdline_get_rest
+
+// Loads public key from file <name>
+// String <name> — UInt
+{ dup ."Loading public key from file " type cr
+  file>B dup Blen 32 <> abort"Public key must be exactly 32 bytes long"
+} : load_pubkey
+
+// Loads contract code from file
+// String filename — Cell contract_code
+{ include } : mk_contract_code
+
+// Makes a set of public keys out of a tuple of public keys
+// Tuple pubkeys — Dict
+{
+  explode dictnew swap
+  // pk1, pk2, ..., pkN, Dict, N
+  {
+    // addr Dict
+    swap load_pubkey dup
+    ."Eligible pubkey: " Bx. cr
+    256 B>u@ swap
+    <b b> <s -rot 256
+    // pk1, pk2, ..., Slice, pkN, Dict, UInt
+    udict!
+    0= abort"Error: Duplicate keys supplied"
+  } swap times
+} : mk_keys_set
+
+// Creates an initial storage cell
+// UInt k, Dict keys_set — Cell initial_storage
+{ <b
+    0 32 u,
+    rot 32 u,
+    swap dict,
+    null dict,
+  b>
+} : mk_initial_storage
+
+// String filename, UInt k, Tuple pubkeys — Cell state_init
+{ mk_keys_set
+  mk_initial_storage
+  ."Making contract code" cr
+  swap mk_contract_code
+  <b b{0011} s, swap ref, swap ref, null dict, b>
+} : mk_state_init
+
+
+cmdline_getarg constant multisig_contract_file
+cmdline_getarg_int constant wc
+cmdline_getarg constant wallet_base
+cmdline_getarg_int constant min_sigs_k
+cmdline_get_rest constant eligible_signers_pks
+
+multisig_contract_file
+min_sigs_k // k
+eligible_signers_pks
+mk_state_init
+
+dup constant state_init
+
+dup ."StateInit: " <s csr. cr
+dup hash wc swap 2dup 2constant msig_addr
+."new wallet address = " 2dup .addr cr
+
+."Non-bounceable address (for init): " 2dup 7 .Addr cr
+."Bounceable address (for later access): " 6 .Addr cr
+
+<b 0 32 u, b> constant body
+
+<b
+  b{10} s,   // ext_in_msg_info
+  b{00} s,   // src: addr_none
+  b{100} s,  // dst: 10 std addr, 0 no anycast, ...
+  msig_addr addr, // dst: ... address
+  b{0000} s, // import_fee = 0
+  b{10} s,   // init = Just Left ...
+  state_init <s s,
+  b{0} s,    // body = Left ...
+  body <s s,
+b>
+
+2 boc+>B dup Bx. cr
+wallet_base +"-query.boc" tuck B>file
+."Saved multisig wallet creating query to file " type cr

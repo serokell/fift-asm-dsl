@@ -1,0 +1,36 @@
+// SPDX-FileCopyrightText: 2019 Serokell <https://serokell.io>
+//
+// SPDX-License-Identifier: MPL-2.0
+
+"TonUtil.fif" include
+
+cmdline_getarg constant wrapped_message_file
+cmdline_getarg load-keypair
+  constant privkey
+  constant pubkey
+
+wrapped_message_file +".msig.boc" file>B B>boc
+<s 32 u@+ dict@+ ref@+ swap s>
+  constant sign_msg_body
+  constant sign_dict
+  constant nonce
+
+."Signing message: " sign_msg_body <s csr. cr
+."with key: " pubkey Bx. cr cr
+sign_msg_body hashu privkey ed25519_sign_uint constant signature
+
+<b signature B, b> <s
+pubkey 256 B>u@ sign_dict 256
+udict!+
+
+0= abort"This key has already signed the message"
+constant sign_dict'
+
+<b
+  nonce 32 u,
+  sign_dict' dict,
+  sign_msg_body ref,
+b>
+
+2 boc+>B wrapped_message_file +".msig.boc" B>file
+."Saved to file " wrapped_message_file +".msig.boc" type cr

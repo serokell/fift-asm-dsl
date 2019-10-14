@@ -1,0 +1,80 @@
+// SPDX-FileCopyrightText: 2019 Serokell <https://serokell.io>
+//
+// SPDX-License-Identifier: MPL-2.0
+
+library Cmdline  // Working with command-line arguments
+
+
+1 box constant _next_arg
+"cli" box constant _cur_prefix
+
+
+//
+// Exitting with an error
+//
+
+{ ."Error: " type cr
+  1 halt
+} : fail
+
+{ char " word
+  1 { fail }
+} ::_ fail"
+
+
+//
+// Displaying the usage information
+//
+
+variable _cli_usage
+
+{ _cli_usage !
+} : cmdline_set_usage
+
+{ _cli_usage @
+  dup null?
+    { drop }
+    { execute }
+  cond
+} : cmdline_show_usage
+
+{ char " word
+  1
+  { swap { ."Error: " type cr cmdline_show_usage 2 halt } if drop }
+} ::_ abort_usage"
+
+
+//
+// Getting CLI arguments
+//
+
+{ _next_arg @
+  dup $# > abort_usage"Not enough command line arguments"
+  _next_arg 1+!
+  $()
+} : cmdline_getarg
+
+{ cmdline_getarg
+  (number)
+  1 = not abort_usage"Not an integer"
+} : cmdline_getarg_int
+
+{ cmdline_getarg
+  _cur_prefix @ +"_" swap $+
+  dup _cur_prefix !
+  find 0= abort_usage"Unknown command"
+  execute
+} : cmdline_dispatch
+
+{ bl word 0 2 ' (create)
+} :: :cmdline
+
+
+{ cmdline_set_usage
+  $# 0>
+    { cmdline_dispatch
+    }
+    { cmdline_show_usage
+    }
+  cond
+} : cmdline_main

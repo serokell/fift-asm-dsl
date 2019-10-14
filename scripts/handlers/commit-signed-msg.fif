@@ -1,0 +1,29 @@
+// SPDX-FileCopyrightText: 2019 Serokell <https://serokell.io>
+//
+// SPDX-License-Identifier: MPL-2.0
+
+"TonUtil.fif" include
+
+cmdline_getarg constant msig_addr_str
+cmdline_getarg constant signed_message_file
+
+signed_message_file +".msig.boc" file>B B>boc constant signed_message
+
+msig_addr_str $>smca
+0= abort"Could not decode address."
+constant flags
+2constant msig_addr
+
+<b
+  b{10} s,   // ext_in_msg_info
+  b{00} s,   // src: addr_none
+  b{100} s,  // dst: 10 std addr, 0 no anycast, ...
+  msig_addr addr, // dst: ... address
+  b{0000} s, // import_fee = 0
+  b{0} s,    // init = Nothing
+  b{0} s,    // body = Left ...
+  signed_message <s s,
+b>
+
+2 boc+>B signed_message_file +".msig-query.boc" B>file
+."Saved to file " signed_message_file +".msig-query.boc" type cr
