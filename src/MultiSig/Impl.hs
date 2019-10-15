@@ -31,9 +31,7 @@ recvSignMsg = viaSubroutine @(DecodeSliceFields SignMsg) @'[] "recvSignMsg" $ do
     -- Garbage collection of expired orders
     pushRoot
     decodeFromCell @Storage
-    -- TODO store garbage collected OrderDict regardless
-    -- of message processing
-    garbageCollectOrders
+
     rollRev @7
     stacktype @[OrderDict, DSet PublicKey, Word32, Nonce, Cell SignMsgBody, SignDict, Nonce, TimestampDict]
 
@@ -80,6 +78,8 @@ recvSignMsg = viaSubroutine @(DecodeSliceFields SignMsg) @'[] "recvSignMsg" $ do
     stacktype @[Nonce, TimestampDict, Word32, AccumPkDict, Hash SignMsgBody, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce]
     extendOrder
     stacktype @[TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce]
+
+    garbageCollectOrders
 
     comment "Encode storage fields"
     reversePrefix @5 -- reverse first 4 elements
