@@ -69,12 +69,6 @@ recvSignMsg = viaSubroutine @(DecodeSliceFields SignMsg) @'[] "recvSignMsg" $ do
     moveOnTop @8
     filterValidSignatures
     stacktype @[AccumPkDict, Hash SignMsgBody, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce, TimestampDict]
-    dup
-    cast @AccumPkDict @(DSet PublicKey)
-    dictEmpty
-    throwIf NoValidSignatures
-
-    accept
 
     -- Add valid signatures to the storage's OrderDict
     push @5 -- push K on the top
@@ -175,14 +169,13 @@ filterValidSignatures =
             rollRev @2
             chkSignU
             stacktype' @[Bool, PublicKey, SignDict, AccumPkDict, Hash SignMsgBody, DSet PublicKey]
-            if Holds then do
-                moveOnTop @2
-                cast @AccumPkDict @(DSet PublicKey)
-                dsetSet
-                cast @(DSet PublicKey) @AccumPkDict
-                swap
-            else
-                drop
+            throwIfNot NoValidSignatures
+            accept
+            moveOnTop @2
+            cast @AccumPkDict @(DSet PublicKey)
+            dsetSet
+            cast @(DSet PublicKey) @AccumPkDict
+            swap
     pop @1
     pop @1
 
