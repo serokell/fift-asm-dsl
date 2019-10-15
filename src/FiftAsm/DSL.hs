@@ -22,6 +22,7 @@ module FiftAsm.DSL
        , Cell
        , Builder
        , Timestamp (..)
+       , CurrentTimestamp (..)
        , Mb
        , BitSize
        , bitSize
@@ -63,8 +64,7 @@ module FiftAsm.DSL
 
        , inc
        , equalInt
-       , geqInt
-       , leqInt
+
        , greaterInt
 
        , dataHash
@@ -80,7 +80,13 @@ module FiftAsm.DSL
        , nothing
        , ifElse
        , ifThenElse
+
        , Condition (..)
+       , (>:=)
+       , (<:=)
+       , (<:)
+       , (>:)
+
        , while
        , throw
        , throwIf
@@ -175,6 +181,7 @@ type instance ToTVM Slice     = 'SliceT
 type instance ToTVM Word8     = 'IntT
 type instance ToTVM Word32    = 'IntT
 type instance ToTVM Timestamp = 'IntT
+type instance ToTVM CurrentTimestamp = 'IntT
 type instance ToTVM Bits      = 'IntT
 type instance ToTVM Bool      = 'IntT
 type instance ToTVM Integer   = 'IntT
@@ -386,14 +393,8 @@ inc = mkI INC
 equalInt :: ToTVM a ~ 'IntT => a & a & s :-> Bool & s
 equalInt = mkI EQUAL
 
-geqInt :: ToTVM a ~ 'IntT => a & a & s :-> Bool & s
-geqInt = mkI GEQ
-
-greaterInt :: ToTVM a ~ 'IntT => a & a & s :-> Bool & s
-greaterInt = mkI GREATER
-
-leqInt :: ToTVM a ~ 'IntT => a & a & s :-> Bool & s
-leqInt = mkI LEQ
+greaterInt :: (ToTVM a ~ 'IntT, ToTVM b ~ 'IntT) => Proxy a -> Proxy b -> b & a & s :-> Bool & s
+greaterInt _ _ = mkI GREATER
 
 dataHash :: forall a x s . ToTVM x ~ 'SliceT => x & s :-> Hash a & s
 dataHash = mkI SHA256U
@@ -447,11 +448,30 @@ data Condition st arg argl argr where
     IsNothing :: (ToTVMs a ++ ToTVMs s ~ ToTVMs (a ++ s)) => Condition s (Mb a ': s) s (a ++ s)
 
     IsEq :: ToTVM a ~ 'IntT => Condition s (a ': a ': s) s s
-    -- IsNeq :: IfCmpXConstraints a Neq => Condition s (a ': a ': s) s s
-    -- IsLt :: IfCmpXConstraints a Lt => Condition s (a ': a ': s) s s
-    IsGt :: ToTVM a ~ 'IntT => Condition s (a ': a ': s) s s
-    IsLe :: ToTVM a ~ 'IntT => Condition s (a ': a ': s) s s
-    IsGe :: ToTVM a ~ 'IntT=> Condition s (a ': a ': s) s s
+    IsLe :: (ToTVM a ~ 'IntT, ToTVM b ~ 'IntT)
+         => Condition s (b ': a ': s) s s
+    IsGe :: (ToTVM a ~ 'IntT, ToTVM b ~ 'IntT)
+         => Condition s (b ': a ': s) s s
+    IsLt :: (ToTVM a ~ 'IntT, ToTVM b ~ 'IntT)
+         => Condition s (b ': a ': s) s s
+    IsGt :: (ToTVM a ~ 'IntT, ToTVM b ~ 'IntT)
+         => Condition s (b ': a ': s) s s
+
+(>:=) :: (ToTVM a ~ 'IntT, ToTVM b ~ 'IntT)
+      => Proxy a -> Proxy b -> Condition s (b ': a ': s) s s
+Proxy >:= Proxy = IsGe
+
+(<:=) :: (ToTVM a ~ 'IntT, ToTVM b ~ 'IntT)
+      => Proxy a -> Proxy b -> Condition s (b ': a ': s) s s
+Proxy <:= Proxy = IsLe
+
+(<:) :: (ToTVM a ~ 'IntT, ToTVM b ~ 'IntT)
+      => Proxy a -> Proxy b -> Condition s (b ': a ': s) s s
+Proxy <: Proxy = IsLt
+
+(>:) :: (ToTVM a ~ 'IntT, ToTVM b ~ 'IntT)
+      => Proxy a -> Proxy b -> Condition s (b ': a ': s) s s
+Proxy >: Proxy = IsGt
 
 -- | Defines semantics of @if ... then ... else ...@ construction.
 ifThenElse
@@ -464,9 +484,10 @@ ifThenElse = \case
     IsNothing -> flip ifJust
 
     IsEq -> \l r -> equalInt >> ifElse l r
-    IsLe -> \l r -> leqInt >> ifElse l r
-    IsGe -> \l r -> geqInt >> ifElse l r
-    IsGt -> \l r -> greaterInt >> ifElse l r
+    IsLe -> \l r -> mkI LEQ >> ifElse l r
+    IsGe -> \l r -> mkI GEQ >> ifElse l r
+    IsGt -> \l r -> mkI GREATER >> ifElse l r
+    IsLt -> \l r -> mkI LESS >> ifElse l r
 
 while :: (s :-> Bool & s) -> (s :-> s) -> (s :-> s)
 while (I st stR) (I body bodyR) = I (WHILE st body) (stR <> bodyR)
@@ -480,8 +501,10 @@ throwIf = mkI . THROWIF
 throwIfNot :: (Enum e, Exception e) => e -> (Bool & s :-> s)
 throwIfNot = mkI . THROWIFNOT
 
+newtype CurrentTimestamp = CurrentTimestamp Timestamp
+
 -- Application specific instructions
-now :: s :-> Timestamp & s
+now :: s :-> CurrentTimestamp & s
 now = mkI NOW
 
 sendRawMsg :: Word8 & Cell MessageObject & s :-> s

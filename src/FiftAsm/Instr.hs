@@ -83,6 +83,7 @@ data Instr (inp :: [T]) (out :: [T]) where
     GEQ      :: Instr ('IntT & 'IntT & s) ('IntT & s)
     LEQ      :: Instr ('IntT & 'IntT & s) ('IntT & s)
     GREATER  :: Instr ('IntT & 'IntT & s) ('IntT & s)
+    LESS  :: Instr ('IntT & 'IntT & s) ('IntT & s)
 
     -- cell serialization (Builder manipulation primitives)
     NEWC     :: Instr s ('BuilderT & s)
