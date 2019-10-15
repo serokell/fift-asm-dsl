@@ -27,9 +27,9 @@
   // pk1, pk2, ..., pkN, Dict, N
   {
     // addr Dict
-    swap load_pubkey dup
-    ."Eligible pubkey: " Bx. cr
-    256 B>u@ swap
+    swap load_pubkey 256 B>u@ dup
+    ."Eligible pubkey: " . cr
+    swap
     <b b> <s -rot 256
     // pk1, pk2, ..., Slice, pkN, Dict, UInt
     udict!
