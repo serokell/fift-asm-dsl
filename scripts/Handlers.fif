@@ -76,6 +76,18 @@
         ."<message_base>.msig.boc." cr
       cr
 
+    cr
+    ."  Commit a signed message:" cr
+      ."    commit-signed-msg"
+      ." <message_base>"
+      ." <multisig_addr>"
+      cr
+      ."  Creates a query which, when sent to the multisig contract, "
+        ."adds the signed message to the multisig order dict. If enough "
+        ."signatures are present, the multisig contract sends the wrapped "
+        ."message and removes it from the order dict." cr
+      cr
+
   cr
 } constant handlers_usage
 

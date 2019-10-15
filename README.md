@@ -39,9 +39,8 @@ Storage contains:
 ## Usage instructions
 
 Prerequisites:
-1. Stack ???
-2. Fift is installed and `FIFTPATH` points to the location of standard library
-files.
+1. Stack
+2. Fift is installed and `FIFTPATH` points to the location of standard library files
 3. TON lite-client is installed
 
 Contract build:
@@ -71,3 +70,20 @@ non-bounceable transaction.
 `lite-client -C <config_path> --cmd "sendfile <outfile_base>-query.boc"`
 
 The deployed multisig contract sends some (internal) _message_ if and only if the quorum is reached.
+1. First, you wrap the message into a multisig envelope. You can either:
+    * Wrap an existing message using `wrap-msg` subcommand. In this case you provide
+      * `<message_base>` — a file with the message excluding the `.boc` suffix,
+      * `<expiration_timestamp>` — unix time (in seconds), when the order becomes invalid,
+      * `<nonce>`.
+    * Create a new message and wrap it into an envelop in one subcommand — `mk-msg`. In addition to envelope parameters you should also provide:
+      * `<amount>` — the number of Grams you want to spend from the multisig contract,
+      * `<dst_address>` — the destination smart contract,
+      * (optionally) `<body_boc>` and `<init_boc>` — `.boc` files with custom `body` and `state_init` parameters.
+2. After you wrapped the message into an envelope, you can sign the resulting `<message_base>.msig.boc` file with one of the private keys belonging to this multisig wallet. The envelope may contain multiple signatures, so you can send it off-chain to other signers if you wish. To sign the wrapped message, you need to invoke `sign-msg` subcommand, supplying:
+    * `<message_base>` — base name without `.msig.boc` suffix,
+    * `<multisig_addr>` — the address of the multisig contract (to prevent cross-contract replays),
+    * `<private_key_file>` — the serialized private key file (as stored, e.g., by `mk-keypair`).
+3. Once some number of signatures is collected, you should commit the signed message. To do this, you should invoke `commit-signed-msg` and provide:
+    * `<message_base>` — base name without `.msig.boc` suffix,
+    * `<multisig_addr>` — the address of the multisig contract.
+4. You can now send the resulting `<message_base>.msig-query.boc` to the network using the client: `lite-client -C <config_path> --cmd "sendfile <message_base>.msig-query.boc"`. Once the contract receives the message, it will check the supplied signatures and either execute the message immediately, or put it on hold (to the orders dict) and wait for the sufficient quorum.
