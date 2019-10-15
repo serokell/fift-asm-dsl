@@ -97,13 +97,12 @@ garbageCollectOrders = do
     dictIter $ do
         stacktype' @[Hash SignMsgBody, TimeNonce, TimestampDict, TimestampDict, Timestamp, OrderDict]
         swap
-        rshift 32
-        cast @TimeNonce @Timestamp
+        unpackTime
         push @4
         if IsLe then do
             -- If an order has been expired
             -- 1. Remove a hash from OrderDict
-            roll @4
+            moveOnTop @4
             dictDelIgnore
             rollRev @3
             -- 2. Copy new TimestampDict where an element already removed
@@ -241,11 +240,9 @@ extendOrder = do
 addToTimestampSet :: Cell SignMsgBody & Hash SignMsgBody & Nonce & TimestampDict & s :-> TimestampDict & s
 addToTimestampSet = do
     getExpirationTime
-    lshift 32
-    cast @Timestamp @Nonce
-    roll @2
-    add
-    cast @Nonce @TimeNonce
+    moveOnTop @2
+    swap
+    timeNoncePack
     stacktype' @[TimeNonce, Hash SignMsgBody, TimestampDict]
     roll @2
     dictSet
@@ -253,10 +250,7 @@ addToTimestampSet = do
 -- Remove from set expired entry
 removeFromTimestampSet :: Timestamp & Nonce & TimestampDict & s :-> TimestampDict & s
 removeFromTimestampSet = do
-    lshift 32
-    cast @Timestamp @Nonce
-    add
-    cast @Nonce @TimeNonce
+    timeNoncePack
     swap
     dictDelIgnore
 

@@ -16,6 +16,9 @@ module MultiSig.Types
        , MultiSigError (..)
        , TimestampDict
        , TimeNonce
+
+       , timeNoncePack
+       , unpackTime
        ) where
 
 import Prelude
@@ -63,11 +66,27 @@ instance DecodeSlice SignMsgBody where
 -- Storage part
 type OrderDict =  Dict (Hash SignMsgBody) Order
 type TimestampDict = Dict TimeNonce (Hash SignMsgBody)
+
+-- | Integer, containing nonce in greater 32 bits and time in smaller 32 bits
 newtype TimeNonce = TimeNonce {unTimeNonce :: Word64}
   deriving (Eq, Ord, Show)
 type instance ToTVM TimeNonce = 'IntT
 type instance BitSize TimeNonce = 64
 type instance IsUnsignedTF TimeNonce = 'True
+
+unpackTime
+  :: TimeNonce & s :-> Timestamp & s
+unpackTime = do
+  rshift 32
+  cast @TimeNonce @Timestamp
+
+timeNoncePack
+  :: Timestamp & Nonce & s :-> TimeNonce & s
+timeNoncePack = do
+    cast @Timestamp @TimeNonce
+    cast1 @Nonce @TimeNonce
+    lshift 32
+    add
 
 data Storage = Storage
     { sOrders :: OrderDict

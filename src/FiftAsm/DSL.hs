@@ -104,6 +104,7 @@ module FiftAsm.DSL
        , stacktype
        , stacktype'
        , cast
+       , cast1
        , ignore
        , comment
 
@@ -539,6 +540,9 @@ stacktype = mkI Ignore
 
 stacktype' :: forall a s . (a ++ s) :-> (a ++ s)
 stacktype' = mkI Ignore
+
+cast1 :: forall a b f s . f & a & s :-> f & b & s
+cast1 = mkI Ignore
 
 cast :: forall a b s . a & s :-> b & s
 cast = mkI Ignore
