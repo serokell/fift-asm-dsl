@@ -1,3 +1,10 @@
+<!--
+SPDX-FileCopyrightText: 2019 Serokell <https://serokell.io>
+SPDX-FileCopyrightText: 2019 xml
+
+SPDX-License-Identifier: MPL-2.0
+-->
+
 # Fift assembler DSL solution
 
 For creating multisig contract we chose to create a DSL for Fift

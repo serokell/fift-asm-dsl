@@ -1,3 +1,7 @@
+-- SPDX-FileCopyrightText: 2019 Serokell <https://serokell.io>
+--
+-- SPDX-License-Identifier: MPL-2.0
+
 -- | Reimplementation of CRC-16 from tdutils
 --
 -- Because it is impossible to find a Haskell package that would compute
