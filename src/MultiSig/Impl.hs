@@ -95,11 +95,11 @@ garbageCollectOrders = do
     swap
     dup
     dictIter $ do
-        stacktype' @[Hash SignMsgBody, TimeNonce, TimestampDict, TimestampDict, Timestamp, OrderDict]
+        stacktype' @[Hash SignMsgBody, TimeNonce, TimestampDict, TimestampDict, CurrentTimestamp, OrderDict]
         swap
         unpackTime
         push @4
-        if IsLe then do
+        if Proxy @Timestamp <: Proxy @CurrentTimestamp then do
             -- If an order has been expired
             -- 1. Remove a hash from OrderDict
             moveOnTop @4
