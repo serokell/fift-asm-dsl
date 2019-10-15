@@ -88,14 +88,19 @@ recvSignMsg = viaSubroutine @(DecodeSliceFields SignMsg) @'[] "recvSignMsg" $ do
     encodeToCell @Storage
     popRoot
 
+data IterTimestampDict
+type instance ToTVM IterTimestampDict = ToTVM TimestampDict
+
 -- Garbage collection of expired orders
 garbageCollectOrders :: TimestampDict & OrderDict & s :-> TimestampDict & OrderDict & s
-garbageCollectOrders = do
+garbageCollectOrders =
+  viaSubroutine @'[TimestampDict, OrderDict]  @'[TimestampDict, OrderDict] "garbageCollectOrders" $ do
     now
     swap
     dup
     dictIter $ do
         stacktype' @[Hash SignMsgBody, TimeNonce, TimestampDict, TimestampDict, CurrentTimestamp, OrderDict]
+        cast2 @TimestampDict @IterTimestampDict
         swap
         unpackTime
         push @4
@@ -103,18 +108,20 @@ garbageCollectOrders = do
             -- If an order has been expired
             -- 1. Remove a hash from OrderDict
             moveOnTop @4
+            stacktype @'[OrderDict, Hash SignMsgBody, IterTimestampDict, TimestampDict, CurrentTimestamp]
             dictDelIgnore
             rollRev @3
+            stacktype @'[IterTimestampDict, TimestampDict, CurrentTimestamp, OrderDict]
             -- 2. Copy new TimestampDict where an element already removed
-            swap
-            drop
+            pop @1
             dup
+            cast1 @IterTimestampDict @TimestampDict
+            cast @IterTimestampDict @TimestampDict
         else do
             -- Push empty dictionary to stop iterating
             drop >> drop
             newDict @TimeNonce @(Hash SignMsgBody)
-    swap
-    drop
+    pop @1
 
 -- | Return true if nonces equal.
 compareNonces :: Nonce & Nonce & s :-> Bool & s
@@ -140,7 +147,8 @@ data AccumPkDict
 type instance ToTVM AccumPkDict = ToTVM (DSet PublicKey)
 
 filterValidSignatures :: SignDict & Hash SignMsgBody & DSet PublicKey & s :-> AccumPkDict & s
-filterValidSignatures = do
+filterValidSignatures =
+  viaSubroutine @'[SignDict, Hash SignMsgBody, DSet PublicKey] @'[AccumPkDict] "filterValidSignatures" $ do
     newDict
     cast @(DSet PublicKey) @AccumPkDict
     swap
@@ -175,7 +183,10 @@ filterValidSignatures = do
 extendOrder
     :: Nonce & TimestampDict & Word32 & AccumPkDict & Hash SignMsgBody & Cell SignMsgBody & OrderDict & s
     :-> TimestampDict & OrderDict & s
-extendOrder = do
+extendOrder =
+  viaSubroutine
+      @'[Nonce, TimestampDict, Word32, AccumPkDict, Hash SignMsgBody, Cell SignMsgBody, OrderDict]
+      @'[TimestampDict, OrderDict] "extendOrder" $ do
     rollRev @6
     rollRev @6
     push @2
