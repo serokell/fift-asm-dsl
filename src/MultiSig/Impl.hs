@@ -20,10 +20,36 @@ recvInternal = drop
 
 recvExternal :: '[Slice] :-> '[]
 recvExternal = do
-    decodeFromSlice @SignMsg
-    endS
-    recvSignMsg
-
+    dup
+    preloadFromSlice @Nonce
+    pushInt 0
+    if IsEq
+      then do
+        comment "Handling init message"
+        drop
+        pushRoot
+        decodeFromCell @Storage
+        moveOnTop @4
+        pushInt 0
+        if IsEq
+          then do
+            comment "State wasn't yet initialized"
+            accept
+            stacktype @'[TimestampDict, OrderDict, DSet PublicKey, Word32]
+            reversePrefix @4
+            pushInt 1
+            encodeToCell @Storage
+            popRoot
+          else do
+            comment "State was already initialized, rejecting"
+            drop
+            drop
+            drop
+            drop
+      else do
+        decodeFromSlice @SignMsg
+        endS
+        recvSignMsg
 
 recvSignMsg :: DecodeSliceFields SignMsg :-> '[]
 recvSignMsg = viaSubroutine @(DecodeSliceFields SignMsg) @'[] "recvSignMsg" $ do
@@ -64,10 +90,6 @@ recvSignMsg = viaSubroutine @(DecodeSliceFields SignMsg) @'[] "recvSignMsg" $ do
     moveOnTop @8
     filterValidSignatures
     stacktype @[AccumPkDict, Hash SignMsgBody, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce, TimestampDict]
-    dup
-    cast @AccumPkDict @(DSet PublicKey)
-    dictEmpty
-    throwIf NoValidSignatures
 
     -- Add valid signatures to the storage's OrderDict
     push @5 -- push K on the top
@@ -166,16 +188,16 @@ filterValidSignatures =
             rollRev @2
             push @5
             rollRev @2
+            stacktype' @[PublicKey, Signature, Hash SignMsgBody]
             chkSignU
             stacktype' @[Bool, PublicKey, SignDict, AccumPkDict, Hash SignMsgBody, DSet PublicKey]
-            if Holds then do
-                moveOnTop @2
-                cast @AccumPkDict @(DSet PublicKey)
-                dsetSet
-                cast @(DSet PublicKey) @AccumPkDict
-                swap
-            else
-                drop
+            throwIfNot InvalidSignature
+            accept
+            moveOnTop @2
+            cast @AccumPkDict @(DSet PublicKey)
+            dsetSet
+            cast @(DSet PublicKey) @AccumPkDict
+            swap
     pop @1
     pop @1
 
@@ -196,8 +218,8 @@ extendOrder =
         stacktype' @[Order, Word32]
         cast @Order @Slice
         decodeFromSliceFull @Order
-        swap
-        drop -- drop MsgBody from storage because there is one from msg
+        pop @1
+        -- ^ drop MsgBody from storage because there is one from msg
         moveOnTop @2
         swap
         false -- not new one
@@ -316,15 +338,11 @@ getOrdersByKey = do
           swap
         )
         (drop >> drop >> drop)
-    swap
-    drop
-    swap
-    drop
+    pop @1
+    pop @1
 
 checkSignMsgBodyBelongsToPk
   :: DSet PublicKey & PublicKey & Bool & s :-> Bool & s
 checkSignMsgBodyBelongsToPk = do
     dsetGet
-    if IsEq
-      then true
-      else false
+    equalInt

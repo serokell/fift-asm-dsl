@@ -26,6 +26,7 @@ import Prelude
 import FiftAsm
 
 newtype Nonce = Nonce Word32
+  deriving (Integral, Num, Real, Ord, Eq, Enum)
 
 type instance ToTVM Nonce = 'IntT
 
@@ -35,7 +36,6 @@ instance DecodeSlice Nonce where
 
 instance EncodeBuilder Nonce where
     encodeToBuilder = st32Unsigned
-
 
 -- Msg part
 type SignDict = Dict PublicKey Signature
@@ -140,7 +140,7 @@ type instance ToTVM Order = 'SliceT
 data MultiSigError
     = NonceMismatch
     | MsgExpired
-    | NoValidSignatures
+    | InvalidSignature
     | ErrorParsingMsg
     deriving (Eq, Ord, Show, Generic)
 
@@ -149,11 +149,11 @@ instance Exception MultiSigError
 instance Enum MultiSigError where
     toEnum 32 = NonceMismatch
     toEnum 33 = MsgExpired
-    toEnum 34 = NoValidSignatures
+    toEnum 34 = InvalidSignature
     toEnum 35 = ErrorParsingMsg
     toEnum _ = error "Uknown MultiSigError id"
 
     fromEnum NonceMismatch = 32
     fromEnum MsgExpired = 33
-    fromEnum NoValidSignatures = 34
+    fromEnum InvalidSignature = 34
     fromEnum ErrorParsingMsg = 35
