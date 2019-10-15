@@ -33,7 +33,7 @@
 
     cr
     ."  Create a new message wrapped into a multisig envelope:" cr
-      ."    wrap-msg" cr
+      ."    mk-msg" cr
       ."        <message_base>"
       ." <expiration_timestamp>"
       ." <nonce>"
@@ -66,12 +66,14 @@
     ."  Sign an existing (wrapped) message:" cr
       ."    sign-msg"
       ." <message_base>"
+      ." <multisig_addr>"
       ." <private_key_file>"
       cr
       ."  Takes a wrapped and possibly half-signed message located "
-        ."at <message_base>.msig.boc and signs it with the given private "
-        ."key taken from <private_key_file>. Writes the output back "
-        ."to <message_base>.msig.boc." cr
+        ."at <message_base>.msig.boc and signs the message and the "
+        ."<multisig_addr>, with the given private key taken from "
+        ."<private_key_file>. Writes the output back to "
+        ."<message_base>.msig.boc." cr
       cr
 
   cr

@@ -5,19 +5,28 @@
 "TonUtil.fif" include
 
 cmdline_getarg constant wrapped_message_file
+cmdline_getarg constant msig_addr_str
 cmdline_getarg load-keypair
   constant privkey
   constant pubkey
 
+msig_addr_str true parse-load-address
+constant bounce
+2constant msig_addr
+
 wrapped_message_file +".msig.boc" file>B B>boc
-<s 32 u@+ dict@+ ref@+ swap s>
+<s dict@+ ref@+ swap s>
   constant sign_msg_body
   constant sign_dict
-  constant nonce
 
 ."Signing message: " sign_msg_body <s csr. cr
 ."with key: " pubkey Bx. cr cr
-sign_msg_body hashu privkey ed25519_sign_uint constant signature
+
+<b
+  <b msig_addr addr, b> <s s,
+  sign_msg_body ref,
+b>
+hashu privkey ed25519_sign_uint constant signature
 
 <b signature B, b> <s
 pubkey 256 B>u@ sign_dict 256
@@ -27,7 +36,6 @@ udict!+
 constant sign_dict'
 
 <b
-  nonce 32 u,
   sign_dict' dict,
   sign_msg_body ref,
 b>

@@ -43,11 +43,11 @@ b>
 
 {
   <b
-    rot 32 u,
-    swap ref,
+    3 roll 32 u, // nonce
+    rot 32 u,    // expiration
+    swap ref,    // message
   b>
   <b
-    rot 32 u,
     dictnew dict,
     swap ref,
   b>

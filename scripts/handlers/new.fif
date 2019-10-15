@@ -79,7 +79,7 @@ dup hash wc swap 2dup 2constant msig_addr
 ."Bounceable address (for later access): " 2dup 6 .Addr cr
 wallet_base +".addr" save-address-verbose cr
 
-<b 0 32 u, b> constant body
+<b null dict, b> constant body
 
 <b
   b{10} s,   // ext_in_msg_info
