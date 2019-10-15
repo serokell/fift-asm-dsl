@@ -24,7 +24,28 @@ recvExternal = do
     preloadFromSlice @Nonce
     pushInt 0
     if IsEq
-      then drop >> accept
+      then do
+        comment "Handling init message"
+        drop
+        pushRoot
+        decodeFromCell @Storage
+        moveOnTop @4
+        pushInt 0
+        if IsEq
+          then do
+            comment "State wasn't yet initialized"
+            accept
+            stacktype @'[TimestampDict, OrderDict, DSet PublicKey, Word32]
+            reversePrefix @4
+            pushInt 1
+            encodeToCell @Storage
+            popRoot
+          else do
+            comment "State was already initialized, rejecting"
+            drop
+            drop
+            drop
+            drop
       else do
         decodeFromSlice @SignMsg
         endS
@@ -167,9 +188,10 @@ filterValidSignatures =
             rollRev @2
             push @5
             rollRev @2
+            stacktype' @[PublicKey, Signature, Hash SignMsgBody]
             chkSignU
             stacktype' @[Bool, PublicKey, SignDict, AccumPkDict, Hash SignMsgBody, DSet PublicKey]
-            throwIfNot NoValidSignatures
+            throwIfNot InvalidSignature
             accept
             moveOnTop @2
             cast @AccumPkDict @(DSet PublicKey)
@@ -196,8 +218,8 @@ extendOrder =
         stacktype' @[Order, Word32]
         cast @Order @Slice
         decodeFromSliceFull @Order
-        swap
-        drop -- drop MsgBody from storage because there is one from msg
+        pop @1
+        -- ^ drop MsgBody from storage because there is one from msg
         moveOnTop @2
         swap
         false -- not new one
@@ -316,15 +338,11 @@ getOrdersByKey = do
           swap
         )
         (drop >> drop >> drop)
-    swap
-    drop
-    swap
-    drop
+    pop @1
+    pop @1
 
 checkSignMsgBodyBelongsToPk
   :: DSet PublicKey & PublicKey & Bool & s :-> Bool & s
 checkSignMsgBodyBelongsToPk = do
     dsetGet
-    if IsEq
-      then true
-      else false
+    equalInt
