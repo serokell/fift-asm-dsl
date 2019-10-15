@@ -81,9 +81,9 @@ library:
     - fmt
 
 executables:
-  fift-asm-dsl-exe:
+  gen-multisig:
     main:                Main.hs
-    source-dirs:         app
+    source-dirs:         multisig
     ghc-options:
     - -threaded
     - -rtsopts

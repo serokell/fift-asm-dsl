@@ -1,0 +1,63 @@
+PROGRAM{
+DECLPROC recv_external
+recv_external PROC:<{
+  // Decode from slice @Signature
+  512 INT
+  LDSLICEX
+  s0 PUSH
+  // Preload from slice @Word32
+  32 PLDU
+  PUSHROOT
+  CTOS
+  // Decode from slice @Storage
+  32 LDU
+  256 LDU
+  ENDS
+  s1 s2 XCPU
+  EQUAL
+  33 THROWIFNOT
+  s2 PUSH
+  HASHSU
+  s0 s4 s4 XC2PU
+  CHKSIGNU
+  34 THROWIFNOT
+  ACCEPT
+  SWAP
+  // Decode from slice @Word32
+  32 LDU
+  s1 POP
+  s0 PUSH
+  SREFS
+  0 INT
+  EQUAL
+  IF:<{
+    
+  }>ELSE<{
+    // Decode from slice @Word8
+    8 LDU
+    // Decode from slice @Cell * MessageObject
+    LDREF
+    s0 s2 XCHG
+    SENDRAWMSG
+  }>
+  
+  ENDS
+  INC
+  NEWC
+  32 STU
+  256 STU
+  ENDC
+  POPROOT
+}>
+DECLPROC recv_internal
+recv_internal PROC:<{
+  DROP
+}>
+85143 DECLMETHOD seqno
+seqno PROC:<{
+  PUSHROOT
+  CTOS
+  // Preload from slice @Word32
+  32 PLDU
+}>
+}END>c

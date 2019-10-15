@@ -225,7 +225,7 @@ extendOrder =
         push @3
         moveOnTop @2
         reversePrefix @3
-        dictSet -- @(OrderId) @(DSet PublicKey)
+        dictSet
 
         stacktype @'[OrderDict, Bool, OrderId, Cell SignMsgBody, Nonce, TimestampDict]
 

@@ -1,0 +1,598 @@
+PROGRAM{
+DECLPROC dictMerge_cf0704_025476
+DECLPROC dictRemMin_127a34_ca7b2f
+DECLPROC dictRemMin_71e818_7a8934
+DECLPROC dictRemMin_92fa02_d04e2c
+DECLPROC dictRemMin_9c04e2_79ddb5
+DECLPROC dictSize_e253a9_653d1b
+DECLPROC extendOrder_c4715f_dc75cb
+DECLPROC filterValidSignatures_02f883_067ad0
+DECLPROC garbageCollectOrders_dc75cb_dc75cb
+DECLPROC recvSignMsg_fda5a0_77b32c
+dictMerge_cf0704_025476 PROC:<{
+  // Merge two dictionaries
+  s0 PUSH
+  DICTEMPTY
+  IF:<{
+    DROP
+    s0 PUSH
+    2 ROLLREV
+    dictSize_e253a9_653d1b CALL
+    IF:<{
+      DROP
+      1 INT
+    }>ELSE<{
+      DROP
+      0 INT
+    }>
+  }>ELSE<{
+    s0 PUSH
+    s3 PUSH
+    SWAP
+    dictSize_e253a9_653d1b CALL
+    IF:<{
+      2 ROLL
+      // Iterate over dictionary
+      dictRemMin_127a34_ca7b2f CALL
+      WHILE:<{
+        DUP
+      }>DO<{
+        IF:<{
+          SWAP
+          // Decode from slice @()
+          NEWC
+          ENDC
+          CTOS
+          SWAP
+          DROP
+          SWAP
+          s0 PUSH
+          s3 PUSH
+          256 INT
+          DICTUGET
+          IF:<{
+            DROP
+            DROP
+            DROP
+          }>ELSE<{
+            4 ROLL
+            256 INT
+            DICTUSET
+            2 ROLL
+            INC
+            s0 PUSH
+            s4 PUSH
+            GEQ
+            IF:<{
+              2 ROLL
+              DROP
+              NEWDICT
+            }>ELSE<{
+              2 ROLL
+            }>
+          }>
+        }>ELSE<{
+          
+        }>
+        
+        dictRemMin_127a34_ca7b2f CALL
+      }>
+      
+      IF:<{
+        DROP
+        DROP
+      }>ELSE<{
+        
+      }>
+      
+      DROP
+      2 ROLL
+      GEQ
+      IF:<{
+        DROP
+        0 INT
+      }>ELSE<{
+        1 INT
+      }>
+    }>ELSE<{
+      DROP
+      DROP
+      DROP
+      0 INT
+    }>
+  }>
+}>
+dictRemMin_127a34_ca7b2f PROC:<{
+  256 INT
+  DICTREMMIN
+  IF:<{
+    // Decode from slice @PublicKey
+    256 LDU
+    DROP
+   TRUE }>ELSE<{ FALSE }>
+}>
+dictRemMin_71e818_7a8934 PROC:<{
+  64 INT
+  DICTREMMIN
+  IF:<{
+    // Decode from slice @TimeNonce
+    64 LDU
+    DROP
+   TRUE }>ELSE<{ FALSE }>
+}>
+dictRemMin_92fa02_d04e2c PROC:<{
+  256 INT
+  DICTREMMIN
+  IF:<{
+    // Decode from slice @Hash * SignPayload
+    256 LDU
+    DROP
+   TRUE }>ELSE<{ FALSE }>
+}>
+dictRemMin_9c04e2_79ddb5 PROC:<{
+  256 INT
+  DICTREMMIN
+  IF:<{
+    // Decode from slice @PublicKey
+    256 LDU
+    DROP
+   TRUE }>ELSE<{ FALSE }>
+}>
+dictSize_e253a9_653d1b PROC:<{
+  // Compute dictionary size
+  0 INT
+  SWAP
+  // Iterate over dictionary
+  dictRemMin_127a34_ca7b2f CALL
+  WHILE:<{
+    DUP
+  }>DO<{
+    IF:<{
+      DROP
+      DROP
+      SWAP
+      INC
+      s0 PUSH
+      s3 PUSH
+      GEQ
+      IF:<{
+        SWAP
+        DROP
+        NEWDICT
+      }>ELSE<{
+        SWAP
+      }>
+    }>ELSE<{
+      
+    }>
+    
+    dictRemMin_127a34_ca7b2f CALL
+  }>
+  
+  IF:<{
+    DROP
+    DROP
+  }>ELSE<{
+    
+  }>
+  
+  DROP
+  s0 PUSH
+  2 ROLLREV
+  GREATER
+  IF:<{
+    1 INT
+  }>ELSE<{
+    DROP
+    0 INT
+  }>
+}>
+extendOrder_c4715f_dc75cb PROC:<{
+  6 ROLLREV
+  6 ROLLREV
+  s2 PUSH
+  s5 PUSH
+  256 INT
+  DICTUGET
+  IF:<{
+    // Decode from slice @Dict * * PublicKey ()
+    LDDICT
+    DROP
+   TRUE }>ELSE<{ FALSE }>
+  
+  IF:<{
+    FALSE
+  }>ELSE<{
+    NEWDICT
+    TRUE
+  }>
+  
+  3 ROLLREV
+  2 ROLL
+  dictMerge_cf0704_025476 CALL
+  IF:<{
+    4 ROLL
+    s3 PUSH
+    2 ROLL
+    3 0 REVERSE
+    2 ROLL
+    NEWC
+    STDICT
+    ENDC
+    CTOS
+    2 ROLLREV
+    256 INT
+    DICTUSET
+    5 ROLLREV
+    IF:<{
+      SWAP
+      CTOS
+      // Decode from slice @SignMsgBody
+      32 LDU
+      32 LDU
+      LDREF
+      ENDS
+      DROP
+      s1 POP
+      2 ROLL
+      SWAP
+      32 INT
+      LSHIFT
+      ADD
+      2 ROLL
+      2 ROLL
+      NEWC
+      256 STU
+      ENDC
+      CTOS
+      2 ROLLREV
+      64 INT
+      DICTUSET
+    }>ELSE<{
+      DROP
+      DROP
+      DROP
+    }>
+  }>ELSE<{
+    SWAP
+    3 ROLL
+    256 INT
+    DICTUDEL
+    DROP
+    2 ROLL
+    CTOS
+    // Decode from slice @SignMsgBody
+    32 LDU
+    32 LDU
+    LDREF
+    ENDS
+    0 INT
+    SENDRAWMSG
+    s1 POP
+    2 ROLLREV
+    4 ROLLREV
+    IF:<{
+      DROP
+      DROP
+    }>ELSE<{
+      32 INT
+      LSHIFT
+      ADD
+      SWAP
+      64 INT
+      DICTUDEL
+      DROP
+    }>
+  }>
+}>
+filterValidSignatures_02f883_067ad0 PROC:<{
+  NEWDICT
+  SWAP
+  // Iterate over dictionary
+  dictRemMin_9c04e2_79ddb5 CALL
+  WHILE:<{
+    DUP
+  }>DO<{
+    IF:<{
+      SWAP
+      // Decode from slice @Signature
+      512 INT
+      LDSLICEX
+      DROP
+      SWAP
+      s0 PUSH
+      s6 PUSH
+      256 INT
+      DICTUGET
+      IF:<{
+        DROP
+        TRUE
+      }>ELSE<{
+        FALSE
+      }>
+      
+      IF:<{
+        s0 PUSH
+        2 ROLLREV
+        s5 PUSH
+        2 ROLLREV
+        CHKSIGNU
+        34 THROWIFNOT
+        ACCEPT
+        2 ROLL
+        NEWC
+        ENDC
+        CTOS
+        2 ROLLREV
+        256 INT
+        DICTUSET
+        SWAP
+      }>ELSE<{
+        DROP
+        DROP
+      }>
+    }>ELSE<{
+      
+    }>
+    
+    dictRemMin_9c04e2_79ddb5 CALL
+  }>
+  
+  IF:<{
+    DROP
+    DROP
+  }>ELSE<{
+    
+  }>
+  
+  DROP
+  s1 POP
+  s1 POP
+}>
+garbageCollectOrders_dc75cb_dc75cb PROC:<{
+  NOW
+  SWAP
+  s0 PUSH
+  // Iterate over dictionary
+  dictRemMin_71e818_7a8934 CALL
+  WHILE:<{
+    DUP
+  }>DO<{
+    IF:<{
+      SWAP
+      // Decode from slice @Hash * SignPayload
+      256 LDU
+      DROP
+      SWAP
+      32 INT
+      RSHIFT
+      
+      s4 PUSH
+      LESS
+      IF:<{
+        4 ROLL
+        256 INT
+        DICTUDEL
+        DROP
+        3 ROLLREV
+        s1 POP
+        s0 PUSH
+      }>ELSE<{
+        DROP
+        DROP
+        NEWDICT
+      }>
+    }>ELSE<{
+      
+    }>
+    
+    dictRemMin_71e818_7a8934 CALL
+  }>
+  
+  IF:<{
+    DROP
+    DROP
+  }>ELSE<{
+    
+  }>
+  
+  DROP
+  s1 POP
+}>
+recvSignMsg_fda5a0_77b32c PROC:<{
+  // Handle sign message
+  5 ROLL
+  // Decode from slice @SignMsg
+  LDDICT
+  LDREF
+  ENDS
+  s0 PUSH
+  CTOS
+  // Decode from slice @SignMsgBody
+  32 LDU
+  32 LDU
+  LDREF
+  ENDS
+  // Checking that nonces match
+  3 0 REVERSE
+  s9 PUSH
+  EQUAL
+  32 THROWIFNOT
+  // Checking that the message hasn't expired
+  NOW
+  GREATER
+  33 THROWIFNOT
+  s1 PUSH
+  // Compute hash of message body
+  MYADDR
+  NEWC
+  STSLICE
+  STREF
+  ENDC
+  HASHCU
+  // Filter invalid signature from the message
+  s0 PUSH
+  s7 PUSH
+  SWAP
+  5 ROLL
+  filterValidSignatures_02f883_067ad0 CALL
+  2 ROLL
+  DROP
+  s6 PUSH
+  4 ROLL
+  s8 PUSH
+  extendOrder_c4715f_dc75cb CALL
+  garbageCollectOrders_dc75cb_dc75cb CALL
+  // Encode storage fields
+  5 0 REVERSE
+  INC
+  NEWC
+  32 STU
+  32 STU
+  STDICT
+  STDICT
+  STDICT
+  ENDC
+  POPROOT
+}>
+DECLPROC recv_external
+recv_external PROC:<{
+  PUSHROOT
+  CTOS
+  // Decode from slice @Storage
+  32 LDU
+  32 LDU
+  LDDICT
+  LDDICT
+  LDDICT
+  ENDS
+  s4 PUSH
+  0 INT
+  EQUAL
+  IF:<{
+    // Handling init message
+    ACCEPT
+    4 ROLL
+    DROP
+    4 0 REVERSE
+    1 INT
+    NEWC
+    32 STU
+    32 STU
+    STDICT
+    STDICT
+    STDICT
+    ENDC
+    POPROOT
+    DROP
+  }>ELSE<{
+    recvSignMsg_fda5a0_77b32c CALL
+  }>
+}>
+DECLPROC recv_internal
+recv_internal PROC:<{
+  DROP
+}>
+88857 DECLMETHOD allOrders
+allOrders PROC:<{
+  // Get all orders
+  PUSHROOT
+  CTOS
+  // Decode from slice @Storage
+  32 LDU
+  32 LDU
+  LDDICT
+  LDDICT
+  LDDICT
+  ENDS
+  DROP
+  3 ROLLREV
+  DROP
+  DROP
+  DROP
+}>
+112753 DECLMETHOD ordersByKey
+ordersByKey PROC:<{
+  // Get orders by key
+  PUSHROOT
+  CTOS
+  // Decode from slice @Storage
+  32 LDU
+  32 LDU
+  LDDICT
+  LDDICT
+  LDDICT
+  ENDS
+  DROP
+  3 ROLLREV
+  DROP
+  DROP
+  DROP
+  NEWDICT
+  SWAP
+  // Iterate over dictionary
+  dictRemMin_92fa02_d04e2c CALL
+  WHILE:<{
+    DUP
+  }>DO<{
+    IF:<{
+      SWAP
+      // Decode from slice @Dict * * PublicKey ()
+      LDDICT
+      DROP
+      s0 PUSH
+      s6 PUSH
+      s6 PUSH
+      3 0 REVERSE
+      256 INT
+      DICTUGET
+      IF:<{
+        DROP
+        TRUE
+      }>ELSE<{
+        FALSE
+      }>
+      
+      EQUAL
+      IF:<{
+        2 ROLL
+        3 ROLL
+        3 ROLLREV
+        3 ROLLREV
+        NEWC
+        STDICT
+        ENDC
+        CTOS
+        3 0 REVERSE
+        2 ROLL
+        NEWC
+        STDICT
+        ENDC
+        CTOS
+        2 ROLLREV
+        256 INT
+        DICTUSET
+        SWAP
+      }>ELSE<{
+        DROP
+        DROP
+      }>
+    }>ELSE<{
+      
+    }>
+    
+    dictRemMin_92fa02_d04e2c CALL
+  }>
+  
+  IF:<{
+    DROP
+    DROP
+  }>ELSE<{
+    
+  }>
+  
+  DROP
+  s1 POP
+  s1 POP
+}>
+}END>c

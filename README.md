@@ -1,6 +1,40 @@
 # fift-asm-dsl
 
+For creating multisig contract we chose to create a DSL for Fift
+language using Haskell.
+
+Haskell has rich type system and we've found it perfectly capable
+of handling types of a stack language Fift.
+
+Our DSL allows user to implement a Fift contract. There are built-in
+capabilities for:
+
+ * composable serialization
+ * checking current stack type in assert-like style
+ * declaring intermediate procedures (even for polymorphic procedures)
+ * introducing type aliases to prohibit occassionally confusing elements on stack
+
+
+DSL nicely integrates with common Haskell syntax (one can use do-notaion and
+if-then-else conditional statements).
+After the contract is implemented in DSL, it can be printed into Fift
+assembler and further be passed to `fift` compiler.
+
+## Simple wallet contract
+
+For convenience of the reader, simple wallet contract (clone of that from ton repository)
+is re-implemnted in our DSL and can be accessed from directory `wallet`,
+generated code is located in `generated/wallet.fift`.
+
+To run generator use command: `stack exec -- gen-wallet`.
+
 ## Multisig contract
+
+Multisig contract is implemented according to requirements provided in contest description.
+
+Storage contains:
+
+
 
 ## Usage instructions
 
