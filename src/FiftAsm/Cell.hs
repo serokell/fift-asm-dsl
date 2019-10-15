@@ -82,8 +82,6 @@ decodeFromSliceUnsafe
     => Slice & s :-> (DecodeSliceFields a ++ s)
 decodeFromSliceUnsafe = decodeFromSlice @a >> drop
 
-
-
 preloadFromSlice
     :: forall a s .
       ( DecodeSlice a

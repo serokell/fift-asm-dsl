@@ -20,59 +20,50 @@ recvInternal = drop
 
 recvExternal :: '[Slice] :-> '[]
 recvExternal = do
-    dup
-    preloadFromSlice @Nonce
+    pushRoot
+    decodeFromCell @Storage
+    stacktype @'[TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce, Slice]
+    push @4
     pushInt 0
     if IsEq
       then do
         comment "Handling init message"
+        accept
+        pop @4
+        reversePrefix @4
+        pushInt 1
+        encodeToCell @Storage
+        popRoot
         drop
-        pushRoot
-        decodeFromCell @Storage
-        moveOnTop @4
-        pushInt 0
-        if IsEq
-          then do
-            comment "State wasn't yet initialized"
-            accept
-            stacktype @'[TimestampDict, OrderDict, DSet PublicKey, Word32]
-            reversePrefix @4
-            pushInt 1
-            encodeToCell @Storage
-            popRoot
-          else do
-            comment "State was already initialized, rejecting"
-            drop
-            drop
-            drop
-            drop
-      else do
-        decodeFromSlice @SignMsg
-        endS
+      else
         recvSignMsg
 
-recvSignMsg :: DecodeSliceFields SignMsg :-> '[]
-recvSignMsg = viaSubroutine @(DecodeSliceFields SignMsg) @'[] "recvSignMsg" $ do
+recvSignMsg
+  :: forall xs.
+    xs ~ '[TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce, Slice]
+  => xs :-> '[]
+recvSignMsg = viaSubroutine @xs @'[] "recvSignMsg" $ do
     comment "Handle sign message"
-    -- Garbage collection of expired orders
-    pushRoot
-    decodeFromCell @Storage
 
-    rollRev @6
-    stacktype @[OrderDict, DSet PublicKey, Word32, Nonce, Cell SignMsgBody, SignDict, TimestampDict]
+    moveOnTop @5
+    decodeFromSlice @SignMsg
+    endS
 
-    moveOnTop @4
+    stacktype @'[Cell SignMsgBody, SignDict, TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce]
+
     dup
     decodeFromCell @SignMsgBody
 
-    stacktype @[Cell MessageObject, Timestamp, Nonce, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce, SignDict, TimestampDict]
+    stacktype @[Cell MessageObject, Timestamp, Nonce, Cell SignMsgBody, SignDict, TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce]
 
     -- Check that nonces of the storage and the message matched
     comment "Checking that nonces match"
     reversePrefix @3
-    push @7
+    push @9
     equalInt @Nonce
     throwIfNot NonceMismatch
+
+    stacktype' @'[Timestamp]
 
     -- Check that the message hasn't expired
     comment "Checking that the message hasn't expired"
@@ -80,32 +71,33 @@ recvSignMsg = viaSubroutine @(DecodeSliceFields SignMsg) @'[] "recvSignMsg" $ do
     Proxy @Timestamp `greaterInt` Proxy @CurrentTimestamp
     throwIfNot MsgExpired
 
-    stacktype @[Cell MessageObject, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce, SignDict, TimestampDict]
+    stacktype' @[Cell MessageObject, Cell SignMsgBody]
 
     -- Compute the message body hash
     comment "Compute hash of message body"
     push @1
     cellHash
-    stacktype @[Hash SignMsgBody, Cell MessageObject, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce, SignDict, TimestampDict]
+
+    stacktype @[Hash SignMsgBody, Cell MessageObject, Cell SignMsgBody, SignDict, TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce]
 
     -- Remove signatures of the message which are not valid
     comment "Filter invalid signature from the message"
     dup
-    push @5
+    push @7
     swap
-    moveOnTop @9
+    moveOnTop @5
     filterValidSignatures
 
-    stacktype @[AccumPkDict, Hash SignMsgBody, Cell MessageObject, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce, TimestampDict]
-    pop @2
+    stacktype @[AccumPkDict, Hash SignMsgBody, Cell MessageObject, Cell SignMsgBody, TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce]
 
-    -- Add valid signatures to the storage's OrderDict
-    push @5 -- push K on the top
-    roll @8
-    roll @8
-    dup
-    rollRev @9
-    stacktype @[Nonce, TimestampDict, Word32, AccumPkDict, Hash SignMsgBody, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce]
+    pop @2
+    push @6 -- push K on the top
+
+    stacktype @[Word32, AccumPkDict, Hash SignMsgBody, Cell SignMsgBody, TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce]
+
+    moveOnTop @4
+    push @8
+
     extendOrder
     stacktype @[TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce]
 
