@@ -369,7 +369,7 @@ pld32Unsigned :: forall a s . ToTVM a ~ 'IntT => Slice & s :-> a & s
 pld32Unsigned = mkI (PLDU 32)
 
 st32Unsigned :: forall a s . ToTVM a ~ 'IntT => Builder & a & s :-> Builder & s
-st32Unsigned = mkI (STU 31)
+st32Unsigned = mkI (STU 32)
 
 endS :: Slice & s :-> s
 endS = mkI ENDS
