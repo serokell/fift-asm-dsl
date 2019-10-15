@@ -1,0 +1,55 @@
+// SPDX-FileCopyrightText: 2019 Serokell <https://serokell.io>
+//
+// SPDX-License-Identifier: MPL-2.0
+
+library ContractMessages  // Prepare signed messages for the contract
+
+"TonUtil.fif" include
+
+{
+<b
+  b{01} s, // internalMsgTag ihr_disabled
+  6 roll 1 i, // bounce
+  b{000100} s, // 0 - boundced 00 - msgAddrNone 10 - msgAddrStd 0 - anycast = nothing
+  5 roll 5 roll addr,
+  3 roll Gram,
+  // 9 - empty dict \ ihr_fee = 0 \ fwd_fee = 0 \ created_lt = 0 \created_at = 0
+  // leaving all zeros, will be filled by SENDRAWMSG
+  0 9 64 32 + + u,
+  b{11} s, // init = Just Right
+  2 roll ref, // init ref
+  b{1} s, // body = right
+  swap ref, // body
+b>
+} : create_init_message
+// ( bounce wc addr amount init body -- msg )
+
+{
+<b
+  b{01} s, // internalMsgTag ihr_disabled
+  5 roll 1 i, // bounce
+  b{000100} s, // 0 - boundced 00 - msgAddrNone 10 - msgAddrStd 0 - anycast = nothing
+  4 roll 4 roll addr,
+  2 roll Gram,
+  // 9 - empty dict \ ihr_fee = 0 \ fwd_fee = 0 \ created_lt = 0 \created_at = 0
+  // leaving all zeros, will be filled by SENDRAWMSG
+  0 9 64 32 + + u,
+  b{0} s, // init = Nothing
+  b{1} s, // body = Right
+  swap ref,
+b>
+} : create_message
+// ( bounce wc addr amount body -- msg )
+
+{
+  <b
+    rot 32 u,
+    swap ref,
+  b>
+  <b
+    rot 32 u,
+    dictnew dict,
+    swap ref,
+  b>
+} : msig_wrap_message
+// ( nonce expiration message — wrapped_message)

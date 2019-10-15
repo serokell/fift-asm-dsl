@@ -9,9 +9,8 @@ cmdline_getarg constant signed_message_file
 
 signed_message_file +".msig.boc" file>B B>boc constant signed_message
 
-msig_addr_str $>smca
-0= abort"Could not decode address."
-constant flags
+msig_addr_str true parse-load-address
+constant bounce
 2constant msig_addr
 
 <b

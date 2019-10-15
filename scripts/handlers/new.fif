@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 "TonUtil.fif" include
+"Asm.fif" include
 
 // Returns the rest of the command line as a tuple
 // — Tuple args
@@ -44,6 +45,7 @@
     rot 32 u,
     swap dict,
     null dict,
+    null dict,
   b>
 } : mk_initial_storage
 
@@ -74,7 +76,8 @@ dup hash wc swap 2dup 2constant msig_addr
 ."new wallet address = " 2dup .addr cr
 
 ."Non-bounceable address (for init): " 2dup 7 .Addr cr
-."Bounceable address (for later access): " 6 .Addr cr
+."Bounceable address (for later access): " 2dup 6 .Addr cr
+wallet_base +".addr" save-address-verbose cr
 
 <b 0 32 u, b> constant body
 

@@ -54,6 +54,13 @@ variable _cli_usage
   $()
 } : cmdline_getarg
 
+{ _next_arg @
+  dup $# >
+  { drop 0 }
+  { _next_arg 1+! $() -1 }
+  cond
+} : cmdline_getarg?
+
 { cmdline_getarg
   (number)
   1 = not abort_usage"Not an integer"

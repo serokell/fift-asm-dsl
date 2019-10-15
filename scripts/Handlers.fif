@@ -19,10 +19,10 @@
       ." <K>"
       ." <pk1>, <pk2>, ..., <pkN>"
       cr
-      ."  (Creates a new <K> out of <N> multisig contract using "
+      ."  Creates a new <K> out of <N> multisig contract using "
         ."<multisig_contract_file> as the contract source code, and "
         ."<pk1>, <pk2>, ..., <pkN> — as the eligible signers list. "
-        ."Writes the output to `<outfile_base>.boc`." cr
+        ."Writes the output to <outfile_base>.boc." cr
     cr
     ."  Create a new keypair:" cr
       ."    mk-keypair"
@@ -32,7 +32,25 @@
         ."keys to <key_base>.prv and <key_base>.pub correspondingly." cr
 
     cr
-    ."  Wrap a message into a multisig envelope:" cr
+    ."  Create a new message wrapped into a multisig envelope:" cr
+      ."    wrap-msg" cr
+      ."        <message_base>"
+      ." <expiration_timestamp>"
+      ." <nonce>"
+      ." <amount>" cr
+      ."        <dst_address>"
+      ." [<body_boc>"
+      ." [<init_boc>]]"
+      cr
+      ."  Creates a new message with the given <amount>, <dst_address>, "
+        ."and optionally message body and state init structure, wraps this "
+        ."message into a multisig envelope with an <expiration_timestamp> "
+        ."(unixtime), <nonce> and an empty signatures dict. Writes "
+        ."the output to <message>.msig.boc." cr
+      cr
+
+    cr
+    ."  Wrap an existing message into a multisig envelope:" cr
       ."    wrap-msg"
       ." <message_base>"
       ." <expiration_timestamp>"
@@ -61,6 +79,7 @@
 
 { "handlers/new.fif" include } : cli_new
 { "handlers/mk-keypair.fif" include } : cli_mk-keypair
-{ "handlers/sign-msg.fif" include } : cli_sign-msg
+{ "handlers/mk-msg.fif" include } : cli_mk-msg
 { "handlers/wrap-msg.fif" include } : cli_wrap-msg
+{ "handlers/sign-msg.fif" include } : cli_sign-msg
 { "handlers/commit-signed-msg.fif" include } : cli_commit-signed-msg

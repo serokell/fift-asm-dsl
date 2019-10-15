@@ -1,0 +1,49 @@
+"../lib/ContractMessages.fif" include
+
+variable body_
+variable init_
+
+{ body_ @ } : body
+{ init_ @ } : init
+
+
+cmdline_getarg constant message_base
+cmdline_getarg_int constant expiration_timestamp
+cmdline_getarg_int constant nonce
+cmdline_getarg $>GR constant amount
+cmdline_getarg constant dst_address_str
+cmdline_getarg? { file>B B>boc body_ ! } { <b 0 32 u, b> body_ ! } cond
+cmdline_getarg? { file>B B>boc init_ ! } if
+
+
+."Creating message with: " cr
+."  amount: " amount .GR cr
+
+dst_address_str true parse-load-address
+constant bounce
+2constant dst_address
+
+bounce
+dst_address
+."  address: " 2dup 7 .Addr cr
+amount
+init null?
+{
+  ."  state_init: nothing" cr
+  ."  body: " cr
+    body <s csr. cr
+  body create_message
+}
+{
+  ."   state_init: " cr
+    init <s csr. cr
+  ."   body: " cr
+    body <s csr. cr
+  init body create_init_message
+} cond
+constant message_object
+
+nonce expiration_timestamp message_object msig_wrap_message
+2 boc+>B message_base +".msig.boc"
+dup ."Writing wrapped message to " type cr
+B>file
