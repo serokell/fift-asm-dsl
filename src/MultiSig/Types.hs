@@ -26,6 +26,7 @@ import Prelude
 import FiftAsm
 
 newtype Nonce = Nonce Word32
+  deriving (Integral, Num, Real, Ord, Eq, Enum)
 
 type instance ToTVM Nonce = 'IntT
 
@@ -35,7 +36,6 @@ instance DecodeSlice Nonce where
 
 instance EncodeBuilder Nonce where
     encodeToBuilder = st32Unsigned
-
 
 -- Msg part
 type SignDict = Dict PublicKey Signature

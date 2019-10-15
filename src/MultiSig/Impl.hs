@@ -20,10 +20,15 @@ recvInternal = drop
 
 recvExternal :: '[Slice] :-> '[]
 recvExternal = do
-    decodeFromSlice @SignMsg
-    endS
-    recvSignMsg
-
+    dup
+    preloadFromSlice @Nonce
+    pushInt 0
+    if IsEq
+      then drop >> accept
+      else do
+        decodeFromSlice @SignMsg
+        endS
+        recvSignMsg
 
 recvSignMsg :: DecodeSliceFields SignMsg :-> '[]
 recvSignMsg = viaSubroutine @(DecodeSliceFields SignMsg) @'[] "recvSignMsg" $ do
@@ -68,6 +73,8 @@ recvSignMsg = viaSubroutine @(DecodeSliceFields SignMsg) @'[] "recvSignMsg" $ do
     cast @AccumPkDict @(DSet PublicKey)
     dictEmpty
     throwIf NoValidSignatures
+
+    accept
 
     -- Add valid signatures to the storage's OrderDict
     push @5 -- push K on the top
