@@ -23,7 +23,7 @@ wrapped_message_file +".msig.boc" file>B B>boc
 ."with key: " pubkey Bx. cr cr
 
 <b
-  <b msig_addr addr, b> <s s,
+  <b b{100} s, msig_addr addr, b> <s s,
   sign_msg_body ref,
 b>
 hashu privkey ed25519_sign_uint constant signature
