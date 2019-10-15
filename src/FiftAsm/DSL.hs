@@ -111,6 +111,8 @@ module FiftAsm.DSL
 
        , pair
        , unpair
+
+       , myAddr
        ) where
 
 import Prelude
@@ -556,3 +558,7 @@ ignore = mkI Ignore
 
 comment :: Text -> a :-> a
 comment = mkI . Comment
+
+myAddr :: s :-> Slice & s
+myAddr = mkI MYADDR
+

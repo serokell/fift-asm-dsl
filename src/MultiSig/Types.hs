@@ -8,9 +8,11 @@
 module MultiSig.Types
        ( SignMsg (..)
        , SignMsgBody (..)
+       , SignPayload (..)
        , Storage (..)
        , Nonce (..)
        , OrderDict
+       , OrderId
        , SignDict
        , MultiSigError (..)
        , TimestampDict
@@ -49,6 +51,17 @@ data SignMsgBody = SignMsgBody
     , mbMsgObj     :: Cell MessageObject
     }
 
+data SignPayload = SignPayload
+    { spMsgBody :: Cell SignMsgBody
+    , spMyAddr  :: Slice
+    }
+
+instance EncodeBuilder SignPayload where
+    type EncodeBuilderFields SignPayload = '[Slice, Cell SignMsgBody]
+    encodeToBuilder = do
+        stSlice
+        encodeToBuilder @(Cell SignMsgBody)
+
 instance DecodeSlice SignMsg where
     type DecodeSliceFields SignMsg = [Cell SignMsgBody, SignDict]
     decodeFromSliceImpl = do
@@ -62,9 +75,11 @@ instance DecodeSlice SignMsgBody where
         decodeFromSliceImpl @Timestamp
         decodeFromSliceImpl @(Cell MessageObject)
 
+type OrderId = Hash SignPayload
+
 -- Storage part
-type OrderDict =  Dict (Hash SignMsgBody) (DSet PublicKey)
-type TimestampDict = Dict TimeNonce (Hash SignMsgBody)
+type OrderDict = Dict OrderId (DSet PublicKey)
+type TimestampDict = Dict TimeNonce OrderId
 
 -- | Integer, containing nonce in greater 32 bits and time in smaller 32 bits
 newtype TimeNonce = TimeNonce {unTimeNonce :: Word64}

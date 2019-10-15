@@ -155,6 +155,7 @@ data Instr (inp :: [T]) (out :: [T]) where
     UNPAIR :: Instr ('TupleT [a, b] & s) (a & b & s)
 
     CALL :: String -> Instr s t
+    MYADDR :: Instr s ('SliceT & s)
 
 deriving instance Show (Instr a b)
 

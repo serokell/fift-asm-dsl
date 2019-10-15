@@ -110,6 +110,7 @@ buildInstr (THROW e) = buildWithInt (fromEnum e) "THROW"
 buildInstr PAIR      = "PAIR"
 buildInstr UNPAIR    = "UNPAIR"
 buildInstr (CALL s)  = "" +| s |+ " CALL"
+buildInstr MYADDR    = "MYADDR"
 
 buildWithInt :: (Num a, Buildable a) => a -> Text -> Builder
 buildWithInt x instr = "" +| x |+ " " +| instr |+ ""

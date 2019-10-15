@@ -72,14 +72,17 @@ recvSignMsg = viaSubroutine @xs @'[] "recvSignMsg" $ do
     Proxy @Timestamp `greaterInt` Proxy @CurrentTimestamp
     throwIfNot MsgExpired
 
-    stacktype' @[Cell MessageObject, Cell SignMsgBody]
+    push @1
+    stacktype' @[Cell SignMsgBody, Cell MessageObject]
 
     -- Compute the message body hash
     comment "Compute hash of message body"
-    push @1
+    myAddr
+    stacktype' @'[Slice, Cell SignMsgBody]
+    encodeToCell @SignPayload
     cellHash
 
-    stacktype @[Hash SignMsgBody, Cell MessageObject, Cell SignMsgBody, SignDict, TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce]
+    stacktype @[OrderId, Cell MessageObject, Cell SignMsgBody, SignDict, TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce]
 
     -- Remove signatures of the message which are not valid
     comment "Filter invalid signature from the message"
@@ -89,13 +92,13 @@ recvSignMsg = viaSubroutine @xs @'[] "recvSignMsg" $ do
     moveOnTop @5
     filterValidSignatures
 
-    stacktype @[AccumPkDict, Hash SignMsgBody, Cell MessageObject, Cell SignMsgBody, TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce]
+    stacktype @[AccumPkDict, OrderId, Cell MessageObject, Cell SignMsgBody, TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce]
 
     moveOnTop @2
     drop
     push @6 -- push K on the top
 
-    stacktype @[Word32, AccumPkDict, Hash SignMsgBody, Cell SignMsgBody, TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce]
+    stacktype @[Word32, AccumPkDict, OrderId, Cell SignMsgBody, TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce]
 
     moveOnTop @4
     push @8
@@ -123,7 +126,7 @@ garbageCollectOrders =
     swap
     dup
     dictIter $ do
-        stacktype' @[Hash SignMsgBody, TimeNonce, TimestampDict, TimestampDict, CurrentTimestamp, OrderDict]
+        stacktype' @[OrderId, TimeNonce, TimestampDict, TimestampDict, CurrentTimestamp, OrderDict]
         cast2 @TimestampDict @IterTimestampDict
         swap
         unpackTime
@@ -132,7 +135,7 @@ garbageCollectOrders =
             -- If an order has been expired
             -- 1. Remove a hash from OrderDict
             moveOnTop @4
-            stacktype @'[OrderDict, Hash SignMsgBody, IterTimestampDict, TimestampDict, CurrentTimestamp]
+            stacktype @'[OrderDict, OrderId, IterTimestampDict, TimestampDict, CurrentTimestamp]
             dictDelIgnore
             rollRev @3
             stacktype @'[IterTimestampDict, TimestampDict, CurrentTimestamp, OrderDict]
@@ -144,20 +147,20 @@ garbageCollectOrders =
         else do
             -- Push empty dictionary to stop iterating
             drop >> drop
-            newDict @TimeNonce @(Hash SignMsgBody)
+            newDict @TimeNonce @(OrderId)
     pop @1
 
 data AccumPkDict
 type instance ToTVM AccumPkDict = ToTVM (DSet PublicKey)
 
-filterValidSignatures :: SignDict & Hash SignMsgBody & DSet PublicKey & s :-> AccumPkDict & s
+filterValidSignatures :: SignDict & OrderId & DSet PublicKey & s :-> AccumPkDict & s
 filterValidSignatures =
-  viaSubroutine @'[SignDict, Hash SignMsgBody, DSet PublicKey] @'[AccumPkDict] "filterValidSignatures" $ do
+  viaSubroutine @'[SignDict, OrderId, DSet PublicKey] @'[AccumPkDict] "filterValidSignatures" $ do
     newDict
     cast @(DSet PublicKey) @AccumPkDict
     swap
     dictIter $ do
-        stacktype' @[Signature, PublicKey, SignDict, AccumPkDict, Hash SignMsgBody, DSet PublicKey]
+        stacktype' @[Signature, PublicKey, SignDict, AccumPkDict, OrderId, DSet PublicKey]
         swap
         dup
         push @6
@@ -165,14 +168,14 @@ filterValidSignatures =
         if NotHolds then
             drop >> drop
         else do
-            stacktype' @[PublicKey, Signature, SignDict, AccumPkDict, Hash SignMsgBody, DSet PublicKey]
+            stacktype' @[PublicKey, Signature, SignDict, AccumPkDict, OrderId, DSet PublicKey]
             dup
             rollRev @2
             push @5
             rollRev @2
-            stacktype' @[PublicKey, Signature, Hash SignMsgBody]
+            stacktype' @[PublicKey, Signature, OrderId]
             chkSignU
-            stacktype' @[Bool, PublicKey, SignDict, AccumPkDict, Hash SignMsgBody, DSet PublicKey]
+            stacktype' @[Bool, PublicKey, SignDict, AccumPkDict, OrderId, DSet PublicKey]
             throwIfNot InvalidSignature
             accept
             moveOnTop @2
@@ -185,18 +188,18 @@ filterValidSignatures =
 
 
 extendOrder
-    :: Nonce & TimestampDict & Word32 & AccumPkDict & Hash SignMsgBody & Cell SignMsgBody & OrderDict & s
+    :: Nonce & TimestampDict & Word32 & AccumPkDict & OrderId & Cell SignMsgBody & OrderDict & s
     :-> TimestampDict & OrderDict & s
 extendOrder =
   viaSubroutine
-      @'[Nonce, TimestampDict, Word32, AccumPkDict, Hash SignMsgBody, Cell SignMsgBody, OrderDict]
+      @'[Nonce, TimestampDict, Word32, AccumPkDict, OrderId, Cell SignMsgBody, OrderDict]
       @'[TimestampDict, OrderDict] "extendOrder" $ do
     rollRev @6
     rollRev @6
-    stacktype' @[Word32, AccumPkDict, Hash SignMsgBody, Cell SignMsgBody, OrderDict, Nonce, TimestampDict]
+    stacktype' @[Word32, AccumPkDict, OrderId, Cell SignMsgBody, OrderDict, Nonce, TimestampDict]
     push @2
     push @5
-    stacktype' @[OrderDict, Hash SignMsgBody, Word32, AccumPkDict]
+    stacktype' @[OrderDict, OrderId, Word32, AccumPkDict]
     dictGet
     if IsJust then do
         stacktype' @[DSet PublicKey, Word32]
@@ -217,20 +220,20 @@ extendOrder =
 
     if IsJust then do
         -- when not enough signatures
-        stacktype' @[DSet PublicKey, Bool, Hash SignMsgBody, Cell SignMsgBody, OrderDict, Nonce, TimestampDict]
+        stacktype' @[DSet PublicKey, Bool, OrderId, Cell SignMsgBody, OrderDict, Nonce, TimestampDict]
         moveOnTop @4
         push @3
         moveOnTop @2
-        dictEncodeSet @(Hash SignMsgBody) @(DSet PublicKey)
+        dictEncodeSet @(OrderId) @(DSet PublicKey)
 
-        stacktype @'[OrderDict, Bool, Hash SignMsgBody, Cell SignMsgBody, Nonce, TimestampDict]
+        stacktype @'[OrderDict, Bool, OrderId, Cell SignMsgBody, Nonce, TimestampDict]
 
         rollRev @5
 
-        stacktype @'[Bool, Hash SignMsgBody, Cell SignMsgBody, Nonce, TimestampDict, OrderDict]
+        stacktype @'[Bool, OrderId, Cell SignMsgBody, Nonce, TimestampDict, OrderDict]
         ifElse addToTimestampSet (drop >> drop >> drop)
     else do
-        stacktype' @[Bool, Hash SignMsgBody, Cell SignMsgBody, OrderDict, Nonce, TimestampDict]
+        stacktype' @[Bool, OrderId, Cell SignMsgBody, OrderDict, Nonce, TimestampDict]
         swap
         moveOnTop @3
         dictDelIgnore
@@ -246,7 +249,7 @@ extendOrder =
         ifElse (drop >> drop) removeFromTimestampSet
 
 -- Add to set to perform garbage collection effectively
-addToTimestampSet :: Hash SignMsgBody & Cell SignMsgBody & Nonce & TimestampDict & s :-> TimestampDict & s
+addToTimestampSet :: OrderId & Cell SignMsgBody & Nonce & TimestampDict & s :-> TimestampDict & s
 addToTimestampSet = do
     swap
     decodeFromCell @SignMsgBody
@@ -255,7 +258,7 @@ addToTimestampSet = do
     moveOnTop @2
     swap
     timeNoncePack
-    stacktype' @[TimeNonce, Hash SignMsgBody, TimestampDict]
+    stacktype' @[TimeNonce, OrderId, TimestampDict]
     roll @2
     dictSet
 
@@ -298,23 +301,23 @@ getOrdersByKey = do
     swap
     stacktype @'[OrderDict, AccumOrderDict, Bool, PublicKey]
     dictIter $ do
-      stacktype @'[DSet PublicKey, Hash SignMsgBody, OrderDict, AccumOrderDict, Bool, PublicKey]
+      stacktype @'[DSet PublicKey, OrderId, OrderDict, AccumOrderDict, Bool, PublicKey]
       dup
-      stacktype @'[DSet PublicKey, DSet PublicKey, Hash SignMsgBody, OrderDict, AccumOrderDict, Bool, PublicKey]
+      stacktype @'[DSet PublicKey, DSet PublicKey, OrderId, OrderDict, AccumOrderDict, Bool, PublicKey]
       push @6
       push @6
       reversePrefix @3
       checkSignMsgBodyBelongsToPk
-      stacktype @'[Bool, DSet PublicKey, Hash SignMsgBody, OrderDict, AccumOrderDict, Bool, PublicKey]
+      stacktype @'[Bool, DSet PublicKey, OrderId, OrderDict, AccumOrderDict, Bool, PublicKey]
       ifElse
         (do
-          stacktype @'[DSet PublicKey, Hash SignMsgBody, OrderDict, AccumOrderDict, Bool, PublicKey]
+          stacktype @'[DSet PublicKey, OrderId, OrderDict, AccumOrderDict, Bool, PublicKey]
           moveOnTop @2
           moveOnTop @3
           cast @AccumOrderDict @OrderDict
           rollRev @3
           rollRev @3
-          stacktype' @'[DSet PublicKey, Hash SignMsgBody, {-Accum-}OrderDict, OrderDict]
+          stacktype' @'[DSet PublicKey, OrderId, {-Accum-}OrderDict, OrderDict]
           dictEncodeSet
           cast @OrderDict @AccumOrderDict
           swap
