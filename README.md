@@ -116,3 +116,35 @@ The deployed multisig contract sends some (internal) _message_ if and only if th
     * `<message_base>` — base name without `.msig.boc` suffix,
     * `<multisig_addr>` — the address of the multisig contract.
 4. You can now send the resulting `<message_base>.msig-query.boc` to the network using the client: `lite-client -C <config_path> --cmd "sendfile <message_base>.msig-query.boc"`. Once the contract receives the message, it will check the supplied signatures and either execute the message immediately, or put it on hold (to the orders dict) and wait for the sufficient quorum.
+
+An example sequence of commands for building and deploying the 2-of-3 multisig contract, and signing the transfer message:
+
+```
+# Build the contract
+stack build
+mkdir build
+stack exec gen-multisig > build/multisig.fif
+
+# Generate a bunch of keys
+fift -s scripts/Main.fif mk-keypair alice
+fift -s scripts/Main.fif mk-keypair bob
+fift -s scripts/Main.fif mk-keypair carol
+
+# Deploy the contract
+fift -s scripts/Main.fif new build/multisig.fif 0 msContract 2 alice.pub bob.pub carol.pub
+# Make sure to fuel the resulting address and invoke:
+lite-client -C config.json --cmd "sendfile msContract-query.boc"
+
+# Make a wrapped message. Note that you can use @addr-file syntax
+fift -s scripts/Main.fif mk-msg MSG1 1602689865 1 1.52 @some.addr
+
+# Let Carol and Bob sign the envelope:
+fift -s scripts/Main.fif sign-msg MSG1 @msContract.addr bob.prv
+fift -s scripts/Main.fif sign-msg MSG1 @msContract.addr carol.prv
+
+# Commit the message to network
+fift -s scripts/Main.fif commit-signed-msg @msContract.addr MSG1
+lite-client -C config.json --cmd "sendfile MSG1.msig-query.boc"
+
+# Note that since we set the quorum to 2, @some.addr will be credited with 1.52 Grams.
+```
