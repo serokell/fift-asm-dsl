@@ -58,38 +58,46 @@ recvSignMsg = viaSubroutine @(DecodeSliceFields SignMsg) @'[] "recvSignMsg" $ do
     pushRoot
     decodeFromCell @Storage
 
-    rollRev @7
-    stacktype @[OrderDict, DSet PublicKey, Word32, Nonce, Cell SignMsgBody, SignDict, Nonce, TimestampDict]
+    rollRev @6
+    stacktype @[OrderDict, DSet PublicKey, Word32, Nonce, Cell SignMsgBody, SignDict, TimestampDict]
+
+    moveOnTop @4
+    dup
+    decodeFromCell @SignMsgBody
+
+    stacktype @[Cell MessageObject, Timestamp, Nonce, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce, SignDict, TimestampDict]
 
     -- Check that nonces of the storage and the message matched
     comment "Checking that nonces match"
-    moveOnTop @6
-    push @4
-    compareNonces
+    reversePrefix @3
+    push @7
+    equalInt @Nonce
     throwIfNot NonceMismatch
-    stacktype @[OrderDict, DSet PublicKey, Word32, Nonce, Cell SignMsgBody, SignDict, TimestampDict]
 
     -- Check that the message hasn't expired
     comment "Checking that the message hasn't expired"
-    moveOnTop @4
-    dup
-    checkMsgExpiration
+    now
+    Proxy @Timestamp `greaterInt` Proxy @CurrentTimestamp
     throwIfNot MsgExpired
+
+    stacktype @[Cell MessageObject, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce, SignDict, TimestampDict]
 
     -- Compute the message body hash
     comment "Compute hash of message body"
-    dup
-    computeMsgBodyHash
-    stacktype @[Hash SignMsgBody, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce, SignDict, TimestampDict]
+    push @1
+    cellHash
+    stacktype @[Hash SignMsgBody, Cell MessageObject, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce, SignDict, TimestampDict]
 
     -- Remove signatures of the message which are not valid
     comment "Filter invalid signature from the message"
     dup
-    push @4
+    push @5
     swap
-    moveOnTop @8
+    moveOnTop @9
     filterValidSignatures
-    stacktype @[AccumPkDict, Hash SignMsgBody, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce, TimestampDict]
+
+    stacktype @[AccumPkDict, Hash SignMsgBody, Cell MessageObject, Cell SignMsgBody, OrderDict, DSet PublicKey, Word32, Nonce, TimestampDict]
+    pop @2
 
     -- Add valid signatures to the storage's OrderDict
     push @5 -- push K on the top
@@ -144,26 +152,6 @@ garbageCollectOrders =
             drop >> drop
             newDict @TimeNonce @(Hash SignMsgBody)
     pop @1
-
--- | Return true if nonces equal.
-compareNonces :: Nonce & Nonce & s :-> Bool & s
-compareNonces = equalInt
-
--- | Fetch expiraiton time from Cell SignMsgBody
-getExpirationTime :: Cell SignMsgBody & s :-> Timestamp & s
-getExpirationTime = do
-    decodeFromCell @SignMsgBody
-    drop
-
--- | Returns True, if a passed timestamp hasn't expired.
-checkMsgExpiration :: Cell SignMsgBody & s :-> Bool & s
-checkMsgExpiration = do
-    getExpirationTime
-    now
-    Proxy @Timestamp `greaterInt` Proxy @CurrentTimestamp
-
-computeMsgBodyHash:: Cell SignMsgBody & s :-> Hash SignMsgBody & s
-computeMsgBodyHash = cellHash
 
 data AccumPkDict
 type instance ToTVM AccumPkDict = ToTVM (DSet PublicKey)
@@ -264,6 +252,7 @@ extendOrder =
         decodeFromCell @SignMsgBody
         pushInt 0 -- msg type = 0
         sendRawMsg
+        pop @1
         stacktype' @[Timestamp, OrderDict, Bool, Nonce, TimestampDict]
         rollRev @2
         rollRev @4
@@ -272,7 +261,9 @@ extendOrder =
 -- Add to set to perform garbage collection effectively
 addToTimestampSet :: Cell SignMsgBody & Hash SignMsgBody & Nonce & TimestampDict & s :-> TimestampDict & s
 addToTimestampSet = do
-    getExpirationTime
+    decodeFromCell @SignMsgBody
+    drop
+    pop @1
     moveOnTop @2
     swap
     timeNoncePack

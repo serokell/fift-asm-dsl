@@ -40,26 +40,26 @@ instance EncodeBuilder Nonce where
 -- Msg part
 type SignDict = Dict PublicKey Signature
 data SignMsg = SignMsg
-    { msgNonce      :: Nonce
-    , msgSignatures :: SignDict
+    { msgSignatures :: SignDict
     , msgBody       :: Cell SignMsgBody
     }
 
 data SignMsgBody = SignMsgBody
-    { mbExpiration :: Timestamp
+    { mbNonce      :: Nonce
+    , mbExpiration :: Timestamp
     , mbMsgObj     :: Cell MessageObject
     }
 
 instance DecodeSlice SignMsg where
-    type DecodeSliceFields SignMsg = [Cell SignMsgBody, SignDict, Nonce]
+    type DecodeSliceFields SignMsg = [Cell SignMsgBody, SignDict]
     decodeFromSliceImpl = do
-        decodeFromSliceImpl @Nonce
         decodeFromSliceImpl @SignDict
         decodeFromSliceImpl @(Cell SignMsgBody)
 
 instance DecodeSlice SignMsgBody where
-    type DecodeSliceFields SignMsgBody = [Cell MessageObject, Timestamp]
+    type DecodeSliceFields SignMsgBody = [Cell MessageObject, Timestamp, Nonce]
     decodeFromSliceImpl = do
+        decodeFromSliceImpl @Nonce
         decodeFromSliceImpl @Timestamp
         decodeFromSliceImpl @(Cell MessageObject)
 
