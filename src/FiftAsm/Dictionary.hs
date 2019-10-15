@@ -208,18 +208,20 @@ dictSize = viaSubroutine @'[Dict k v, Word32] @'[Mb '[Size]] "dictSize" $ do
         stacktype' @[Size, Size, Dict k v, Word32]
         cast @Size @Word32
         push @3
-        leqInt
-        -- if size is greater than k, let's replace a dict with empt one to stop iteration
-        if NotHolds then swap
-        else do
-            swap
-            drop
-            newDict @k @v
+        geqInt
+        -- if `size >= k`, let's replace a dict with empt one to stop iteration
+        if Holds
+          then do
+              swap
+              drop
+              newDict @k @v
+          else swap
+    stacktype @'[Size, Word32]
     dup
     rollRev @2
     stacktype' @[Size, Word32, Size]
     cast @Size @Word32
-    geqInt
+    leqInt
     if Holds then
         drop >> nothing @'[Size]
     else
