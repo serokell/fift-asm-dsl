@@ -65,12 +65,15 @@ recvSignMsg = viaSubroutine @xs @'[] "recvSignMsg" $ do
     throwIfNot NonceMismatch
 
     stacktype' @'[Timestamp]
+    dup
 
     -- Check that the message hasn't expired
     comment "Checking that the message hasn't expired"
     now
     Proxy @Timestamp `greaterInt` Proxy @CurrentTimestamp
     throwIfNot MsgExpired
+
+    rollRev @8
 
     push @1
     stacktype' @[Cell SignMsgBody, Cell MessageObject]
@@ -82,20 +85,24 @@ recvSignMsg = viaSubroutine @xs @'[] "recvSignMsg" $ do
     encodeToCell @SignPayload
     cellHash
 
-    stacktype @[OrderId, Cell MessageObject, Cell SignMsgBody, SignDict, TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce]
+    stacktype @[Hash SignPayload, Cell MessageObject, Cell SignMsgBody, SignDict, TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce, Timestamp]
 
     -- Remove signatures of the message which are not valid
     comment "Filter invalid signature from the message"
-    dup
-    push @7
+    push @6
     swap
-    moveOnTop @5
+    moveOnTop @4
     filterValidSignatures
 
-    stacktype @[AccumPkDict, OrderId, Cell MessageObject, Cell SignMsgBody, TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce]
+    stacktype @[AccumPkDict, Cell MessageObject, Cell SignMsgBody, TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce, Timestamp]
 
-    moveOnTop @2
-    drop
+    moveOnTop @1
+    moveOnTop @8
+
+    encodeToCell @OrderIdPayload
+    cellHash
+    swap
+
     push @6 -- push K on the top
 
     stacktype @[Word32, AccumPkDict, OrderId, Cell SignMsgBody, TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce]
@@ -153,14 +160,14 @@ garbageCollectOrders =
 data AccumPkDict
 type instance ToTVM AccumPkDict = ToTVM (DSet PublicKey)
 
-filterValidSignatures :: SignDict & OrderId & DSet PublicKey & s :-> AccumPkDict & s
+filterValidSignatures :: SignDict & Hash SignPayload & DSet PublicKey & s :-> AccumPkDict & s
 filterValidSignatures =
-  viaSubroutine @'[SignDict, OrderId, DSet PublicKey] @'[AccumPkDict] "filterValidSignatures" $ do
+  viaSubroutine @'[SignDict, Hash SignPayload, DSet PublicKey] @'[AccumPkDict] "filterValidSignatures" $ do
     newDict
     cast @(DSet PublicKey) @AccumPkDict
     swap
     dictIter $ do
-        stacktype' @[Signature, PublicKey, SignDict, AccumPkDict, OrderId, DSet PublicKey]
+        stacktype' @[Signature, PublicKey, SignDict, AccumPkDict, Hash SignPayload, DSet PublicKey]
         swap
         dup
         push @6
@@ -168,14 +175,14 @@ filterValidSignatures =
         if NotHolds then
             drop >> drop
         else do
-            stacktype' @[PublicKey, Signature, SignDict, AccumPkDict, OrderId, DSet PublicKey]
+            stacktype' @[PublicKey, Signature, SignDict, AccumPkDict, Hash SignPayload, DSet PublicKey]
             dup
             rollRev @2
             push @5
             rollRev @2
-            stacktype' @[PublicKey, Signature, OrderId]
+            stacktype' @[PublicKey, Signature, Hash SignPayload]
             chkSignU
-            stacktype' @[Bool, PublicKey, SignDict, AccumPkDict, OrderId, DSet PublicKey]
+            stacktype' @[Bool, PublicKey, SignDict, AccumPkDict, Hash SignPayload, DSet PublicKey]
             throwIfNot InvalidSignature
             accept
             moveOnTop @2

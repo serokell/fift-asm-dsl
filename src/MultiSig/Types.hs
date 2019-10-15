@@ -9,6 +9,7 @@ module MultiSig.Types
        ( SignMsg (..)
        , SignMsgBody (..)
        , SignPayload (..)
+       , OrderIdPayload (..)
        , Storage (..)
        , Nonce (..)
        , OrderDict
@@ -56,6 +57,17 @@ data SignPayload = SignPayload
     , spMyAddr  :: Slice
     }
 
+data OrderIdPayload = OrderIdPayload
+    { oipExpiration :: Timestamp
+    , oipMsgObj     :: Cell MessageObject
+    }
+
+instance EncodeBuilder OrderIdPayload where
+    type EncodeBuilderFields OrderIdPayload = '[Timestamp, Cell MessageObject]
+    encodeToBuilder = do
+        encodeToBuilder @Timestamp
+        encodeToBuilder @(Cell MessageObject)
+
 instance EncodeBuilder SignPayload where
     type EncodeBuilderFields SignPayload = '[Slice, Cell SignMsgBody]
     encodeToBuilder = do
@@ -75,7 +87,7 @@ instance DecodeSlice SignMsgBody where
         decodeFromSliceImpl @Timestamp
         decodeFromSliceImpl @(Cell MessageObject)
 
-type OrderId = Hash SignPayload
+type OrderId = Hash OrderIdPayload
 
 -- Storage part
 type OrderDict = Dict OrderId (DSet PublicKey)
