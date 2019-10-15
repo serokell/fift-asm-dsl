@@ -1,4 +1,4 @@
-# fift-asm-dsl
+# Fift assembler DSL solution
 
 For creating multisig contract we chose to create a DSL for Fift
 assembler language using Haskell.
@@ -66,9 +66,9 @@ Prerequisites:
 3. TON lite-client is installed
 
 Contract build:
-1. `stack build`
+1. `stack build --fast`
 2. `mkdir build`
-3. `stack exec fift-asm-dsl-exe > build/multisig.fif`
+3. `stack exec gen-multisig > build/multisig.fif`
 
 Once you've build the contract, you can prepare and sign messages using the
 provided CLI. The CLI is invoked by calling
