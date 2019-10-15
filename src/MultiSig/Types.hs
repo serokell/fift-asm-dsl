@@ -14,6 +14,11 @@ module MultiSig.Types
        , OrderDict
        , SignDict
        , MultiSigError (..)
+       , TimestampDict
+       , TimeNonce
+
+       , timeNoncePack
+       , unpackTime
        ) where
 
 import Prelude
@@ -60,11 +65,35 @@ instance DecodeSlice SignMsgBody where
 
 -- Storage part
 type OrderDict =  Dict (Hash SignMsgBody) Order
+type TimestampDict = Dict TimeNonce (Hash SignMsgBody)
+
+-- | Integer, containing nonce in greater 32 bits and time in smaller 32 bits
+newtype TimeNonce = TimeNonce {unTimeNonce :: Word64}
+  deriving (Eq, Ord, Show)
+type instance ToTVM TimeNonce = 'IntT
+type instance BitSize TimeNonce = 64
+type instance IsUnsignedTF TimeNonce = 'True
+
+unpackTime
+  :: TimeNonce & s :-> Timestamp & s
+unpackTime = do
+  rshift 32
+  cast @TimeNonce @Timestamp
+
+timeNoncePack
+  :: Timestamp & Nonce & s :-> TimeNonce & s
+timeNoncePack = do
+    cast @Timestamp @TimeNonce
+    cast1 @Nonce @TimeNonce
+    lshift 32
+    add
+
 data Storage = Storage
     { sOrders :: OrderDict
     , sNonce  :: Nonce
     , sK      :: Word32
     , sPKs    :: DSet PublicKey
+    , sSorted :: TimestampDict
     }
 
 data Order = Order
@@ -73,12 +102,13 @@ data Order = Order
     }
 
 instance DecodeSlice Storage where
-    type DecodeSliceFields Storage = [OrderDict, DSet PublicKey, Word32, Nonce]
+    type DecodeSliceFields Storage = [TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce]
     decodeFromSliceImpl = do
         decodeFromSliceImpl @Nonce
         decodeFromSliceImpl @Word32
         decodeFromSliceImpl @(DSet PublicKey)
         decodeFromSliceImpl @OrderDict
+        decodeFromSliceImpl @TimestampDict
 
 instance EncodeBuilder Storage where
     encodeToBuilder = do
@@ -86,6 +116,7 @@ instance EncodeBuilder Storage where
         encodeToBuilder @Word32
         encodeToBuilder @(DSet PublicKey)
         encodeToBuilder @OrderDict
+        encodeToBuilder @TimestampDict
 
 instance DecodeSlice Order where
     type DecodeSliceFields Order = [DSet PublicKey, Cell SignMsgBody]
@@ -97,6 +128,12 @@ instance EncodeBuilder Order where
     encodeToBuilder = do
         encodeToBuilder @(Cell SignMsgBody)
         encodeToBuilder @(DSet PublicKey)
+
+instance DecodeSlice TimeNonce where
+    decodeFromSliceImpl = ld64Unsigned
+
+instance EncodeBuilder TimeNonce where
+    encodeToBuilder = st64Unsigned
 
 type instance ToTVM Order = 'SliceT
 

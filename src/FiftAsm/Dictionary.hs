@@ -1,3 +1,4 @@
+{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE NoApplicativeDo, RebindableSyntax #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE PolyKinds #-}
@@ -82,6 +83,28 @@ instance (ToTVM k ~ 'IntT, ToTVM v ~ 'SliceT, IsUnsignedTF k ~ 'True, KnownNat (
         pushInt (bitSize @k)
         mkI DICTUGET
     dictSet' = do
+        pushInt (bitSize @k)
+        mkI DICTUSET
+    dictDel' = do
+        pushInt (bitSize @k)
+        mkI DICTUDEL
+
+
+instance ( ToTVM k ~ 'IntT, ToTVM v ~ 'IntT, IsUnsignedTF k ~ 'True, KnownNat (BitSize k),
+           EncodeBuilder v, EncodeBuilderFields v ~ '[v],
+           DecodeSlice v, DecodeSliceFields v ~ '[v],
+           Typeable v
+         )
+        => DictOperations' 'IntT 'IntT 'True k v where
+    dictGet' = do
+        pushInt (bitSize @k)
+        mkI DICTUGET
+        fmapMaybe @'[Slice] @'[v] (decodeFromSlice @v >> drop)
+    dictSet' :: forall s . Dict k v & k & v & s :-> Dict k v & s
+    dictSet' = do
+        roll @2
+        encodeToSlice @v @(Dict k v & k & s)
+        rollRev @2
         pushInt (bitSize @k)
         mkI DICTUSET
     dictDel' = do
@@ -231,7 +254,7 @@ dictMerge
     , ProhibitMaybe (ToTVM v)
     )
     => Dict k v & Dict k v & Word32 & s :-> Mb '[Dict k v] & s
-dictMerge = do
+dictMerge =
   viaSubroutine @'[Dict k v, Dict k v, Word32]
                 @'[Mb '[Dict k v]]
                 "dictMerge" $ do

@@ -58,11 +58,16 @@ module FiftAsm.DSL
        , ld32Unsigned
        , pld32Unsigned
        , st32Unsigned
+       , ld64Unsigned
+       , st64Unsigned
        , endS
        , cToS
        , srefs
 
        , inc
+       , add
+       , rshift
+       , lshift
        , equalInt
 
        , greaterInt
@@ -99,6 +104,8 @@ module FiftAsm.DSL
        , stacktype
        , stacktype'
        , cast
+       , cast1
+       , cast2
        , ignore
        , comment
 
@@ -192,11 +199,11 @@ type instance ToTVM ()        = 'SliceT
 type instance ToTVM ((,) a b) = 'TupleT '[ToTVM a, ToTVM b]
 type instance ToTVM (Mb xs)   = 'MaybeT (ToTVMs xs)
 
-type family IsUnsignedTF a :: Bool where
-    IsUnsignedTF PublicKey = 'True
-    IsUnsignedTF (Hash a)  = 'True
-    IsUnsignedTF Word32    = 'True
-    IsUnsignedTF  _        = 'False
+type family IsUnsignedTF a :: Bool
+
+type instance IsUnsignedTF PublicKey = 'True
+type instance IsUnsignedTF (Hash a)  = 'True
+type instance IsUnsignedTF Word32    = 'True
 
 class ToTVM a ~ 'IntT => IsUnsigned a where
 instance (IsUnsignedTF a ~ 'True, ToTVM a ~ 'IntT) => IsUnsigned a
@@ -378,6 +385,12 @@ pld32Unsigned = mkI (PLDU 32)
 st32Unsigned :: forall a s . ToTVM a ~ 'IntT => Builder & a & s :-> Builder & s
 st32Unsigned = mkI (STU 32)
 
+ld64Unsigned :: forall a s . ToTVM a ~ 'IntT => Slice & s :-> Slice & a & s
+ld64Unsigned = mkI (LDU 64)
+
+st64Unsigned :: forall a s . ToTVM a ~ 'IntT => Builder & a & s :-> Builder & s
+st64Unsigned = mkI (STU 64)
+
 endS :: Slice & s :-> s
 endS = mkI ENDS
 
@@ -389,6 +402,15 @@ srefs = mkI SREFS
 
 inc :: ToTVM a ~ 'IntT => a & s :-> a & s
 inc = mkI INC
+
+add :: ToTVM a ~ 'IntT => a & a & s :-> a & s
+add = mkI ADD
+
+rshift :: ToTVM a ~ 'IntT => Bits -> a & s :-> a & s
+rshift b = pushInt b >> mkI RSHIFT
+
+lshift :: ToTVM a ~ 'IntT => Bits -> a & s :-> a & s
+lshift b = pushInt b >> mkI LSHIFT
 
 equalInt :: ToTVM a ~ 'IntT => a & a & s :-> Bool & s
 equalInt = mkI EQUAL
@@ -519,6 +541,12 @@ stacktype = mkI Ignore
 
 stacktype' :: forall a s . (a ++ s) :-> (a ++ s)
 stacktype' = mkI Ignore
+
+cast2 :: forall a b f g s . f & g & a & s :-> f & g & b & s
+cast2 = mkI Ignore
+
+cast1 :: forall a b f s . f & a & s :-> f & b & s
+cast1 = mkI Ignore
 
 cast :: forall a b s . a & s :-> b & s
 cast = mkI Ignore
