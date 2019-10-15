@@ -158,7 +158,7 @@ data Instr (inp :: [T]) (out :: [T]) where
 
 deriving instance Show (Instr a b)
 
-type PopTF n s = (Take n s ++ Drop (n + 1) s)
+type PopTF n s = (Tail (Take n s) ++ '[Head s] ++ Drop (n + 1) s)
 
 type family PushTF (n :: Nat) (xs :: [k]) where
     PushTF 0 (x ': xs) = x ': x ': xs

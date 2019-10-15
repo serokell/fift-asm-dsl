@@ -4,6 +4,7 @@ module Util
        ( Take
        , Drop
        , Head
+       , Tail
        , Swap
        , Reverse
        , RecAll_
@@ -28,6 +29,10 @@ type family Drop (n :: Nat) (xs :: [k]) where
     Drop _ '[] =
         TypeError ('Text "Drop: type level list doesn't have needed amount of elements")
     Drop n (x ': xs) = Drop (n - 1) xs
+
+type family Tail (xs :: [k]) where
+    Tail (_ ': xs) = xs
+    Tail _ = TypeError ('Text "Tail doesn't exist")
 
 type family Head (xs :: [k]) where
     Head (x ': _) = x

@@ -29,7 +29,8 @@ recvExternal = do
       then do
         comment "Handling init message"
         accept
-        pop @4
+        moveOnTop @4
+        drop
         reversePrefix @4
         pushInt 1
         encodeToCell @Storage
@@ -90,7 +91,8 @@ recvSignMsg = viaSubroutine @xs @'[] "recvSignMsg" $ do
 
     stacktype @[AccumPkDict, Hash SignMsgBody, Cell MessageObject, Cell SignMsgBody, TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce]
 
-    pop @2
+    moveOnTop @2
+    drop
     push @6 -- push K on the top
 
     stacktype @[Word32, AccumPkDict, Hash SignMsgBody, Cell SignMsgBody, TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce]
