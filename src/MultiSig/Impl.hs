@@ -102,7 +102,7 @@ checkMsgExpiration :: Cell SignMsgBody & s :-> Bool & s
 checkMsgExpiration = do
     getExpirationTime
     now
-    greaterInt
+    Proxy @Timestamp `greaterInt` Proxy @CurrentTimestamp
 
 computeMsgBodyHash:: Cell SignMsgBody & s :-> Hash SignMsgBody & s
 computeMsgBodyHash = cellHash

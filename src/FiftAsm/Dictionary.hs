@@ -191,7 +191,7 @@ dictIter onEntry = dictIter' $ do
 dictEmpty :: Dict k v & s :-> Bool & s
 dictEmpty = mkI DICTEMPTY
 
--- Returns either Just Size or Nothing if size is not less than passed K.
+-- | Returns either @Just size@ or @Nothing@ if @size >= K@.
 dictSize
     :: forall k v s . DictRemMinC k v
     => Dict k v & Word32 & s :-> Mb '[Size] & s
@@ -206,31 +206,28 @@ dictSize = viaSubroutine @'[Dict k v, Word32] @'[Mb '[Size]] "dictSize" $ do
         inc
         dup
         stacktype' @[Size, Size, Dict k v, Word32]
-        cast @Size @Word32
         push @3
-        leqInt
-        -- if size is greater than k, let's replace a dict with empt one to stop iteration
-        if NotHolds then swap
-        else do
+        -- if `size >= k`, let's replace a dict with empt one to stop iteration
+        if Proxy @Size >:= Proxy @Word32 then do
             swap
             drop
             newDict @k @v
+        else swap
+    stacktype @'[Size, Word32]
     dup
     rollRev @2
     stacktype' @[Size, Word32, Size]
-    cast @Size @Word32
-    geqInt
-    if Holds then
-        drop >> nothing @'[Size]
-    else
-        just @'[Size]
+    if Proxy @Word32 >: Proxy @Size
+      then just
+      else drop >> nothing
 
--- Returns either Just (Dict k v) or Nothing if size of Dict k v is >= K.
+-- | Returns either @Just (Dict k v)@ or @Nothing@ if @size >= K@
+-- (for @size@ being size of the dictionary).
 dictMerge
     :: forall k v s .
     ( DictRemMinC k v
     , DictOperations k v
-    , DecodeSliceFields v ~ '[v] -- TODO this restriction can be made lighter
+    , DecodeSliceFields v ~ '[v]
     , ProhibitMaybe (ToTVM v)
     )
     => Dict k v & Dict k v & Word32 & s :-> Mb '[Dict k v] & s
@@ -282,20 +279,16 @@ dictMerge = do
                     roll @2
                     inc
                     dup
-                    cast @Size @Word32
                     push @4
-                    leqInt
-                    -- Check if a current size is not less than k
-                    if NotHolds then
-                        roll @2
-                    else do
+                    -- Check @size >= k@
+                    if Proxy @Size >:= Proxy @Word32
+                      then do
                         roll @2
                         drop
                         newDict @k @v
+                      else roll @2
             stacktype' @[Size, Dict k v, Word32]
-            cast @Size @Word32
-            roll @2
-            if IsLe then
-                drop >> nothing
-            else
-                just
+            moveOnTop @2
+            if Proxy @Size >:= Proxy @Word32
+              then drop >> nothing
+              else just

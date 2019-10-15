@@ -1,0 +1,18 @@
+// SPDX-FileCopyrightText: 2019 Serokell <https://serokell.io>
+//
+// SPDX-License-Identifier: MPL-2.0
+
+cmdline_getarg
+
+// Bytes key, String filename —
+{ B>file } : save_to_file
+
+dup dup newkeypair rot ".pub" $+ dup
+."Saved new public key to file " type cr B>file
+swap ".prv" $+ dup
+."Saved new private key to file " type cr B>file
+
+dup ".prv" $+ file>B priv>pub dup Bx. cr
+swap ".pub" $+ file>B Bx. cr
+
+// 17:51 - 58

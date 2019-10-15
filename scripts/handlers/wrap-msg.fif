@@ -1,0 +1,25 @@
+// SPDX-FileCopyrightText: 2019 Serokell <https://serokell.io>
+//
+// SPDX-License-Identifier: MPL-2.0
+
+"../Cmdline.fif" include
+"TonUtil.fif" include
+
+cmdline_getarg constant message_file
+cmdline_getarg_int constant expiration
+cmdline_getarg_int constant nonce
+
+message_file +".boc" file>B B>boc constant message_object
+
+<b
+  expiration 32 u,
+  message_object ref,
+b> constant sign_msg_body
+
+<b
+  nonce 32 u,
+  null dict,
+  sign_msg_body ref,
+b> dup
+
+2 boc+>B message_file +".msig.boc" B>file

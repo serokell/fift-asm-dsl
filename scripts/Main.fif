@@ -1,0 +1,10 @@
+#!/usr/bin/env fift -s
+
+// SPDX-FileCopyrightText: 2019 Serokell <https://serokell.io>
+//
+// SPDX-License-Identifier: MPL-2.0
+
+"Cmdline.fif" include
+"Handlers.fif" include
+
+handlers_usage cmdline_main
