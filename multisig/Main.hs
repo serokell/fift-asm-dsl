@@ -15,4 +15,5 @@ main = putText $ pretty $ declProgram procedures methods
     methods =
       [ ("allOrders", declMethod getAllOrders)
       , ("ordersByKey", declMethod getOrdersByKey)
+      , ("seqno", declMethod getSeqno)
       ]

@@ -7,6 +7,7 @@ module MultiSig.Impl
 
        , getAllOrders
        , getOrdersByKey
+       , getSeqno
        ) where
 
 import Prelude
@@ -339,3 +340,12 @@ checkSignMsgBodyBelongsToPk
 checkSignMsgBodyBelongsToPk = do
     dsetGet
     equalInt
+
+getSeqno :: '[] :-> '[Nonce]
+getSeqno = do
+  pushRoot
+  decodeFromCell @Storage
+  drop
+  drop
+  drop
+  drop
