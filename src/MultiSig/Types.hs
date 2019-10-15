@@ -9,7 +9,6 @@ module MultiSig.Types
        ( SignMsg (..)
        , SignMsgBody (..)
        , Storage (..)
-       , Order (..)
        , Nonce (..)
        , OrderDict
        , SignDict
@@ -64,7 +63,7 @@ instance DecodeSlice SignMsgBody where
         decodeFromSliceImpl @(Cell MessageObject)
 
 -- Storage part
-type OrderDict =  Dict (Hash SignMsgBody) Order
+type OrderDict =  Dict (Hash SignMsgBody) (DSet PublicKey)
 type TimestampDict = Dict TimeNonce (Hash SignMsgBody)
 
 -- | Integer, containing nonce in greater 32 bits and time in smaller 32 bits
@@ -96,11 +95,6 @@ data Storage = Storage
     , sSorted :: TimestampDict
     }
 
-data Order = Order
-    { oMsgBody    :: Cell SignMsgBody
-    , oApproved   :: DSet PublicKey
-    }
-
 instance DecodeSlice Storage where
     type DecodeSliceFields Storage = [TimestampDict, OrderDict, DSet PublicKey, Word32, Nonce]
     decodeFromSliceImpl = do
@@ -118,24 +112,11 @@ instance EncodeBuilder Storage where
         encodeToBuilder @OrderDict
         encodeToBuilder @TimestampDict
 
-instance DecodeSlice Order where
-    type DecodeSliceFields Order = [DSet PublicKey, Cell SignMsgBody]
-    decodeFromSliceImpl = do
-        decodeFromSliceImpl @(Cell SignMsgBody)
-        decodeFromSliceImpl @(DSet PublicKey)
-
-instance EncodeBuilder Order where
-    encodeToBuilder = do
-        encodeToBuilder @(Cell SignMsgBody)
-        encodeToBuilder @(DSet PublicKey)
-
 instance DecodeSlice TimeNonce where
     decodeFromSliceImpl = ld64Unsigned
 
 instance EncodeBuilder TimeNonce where
     encodeToBuilder = st64Unsigned
-
-type instance ToTVM Order = 'SliceT
 
 data MultiSigError
     = NonceMismatch

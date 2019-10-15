@@ -193,48 +193,41 @@ extendOrder =
       @'[TimestampDict, OrderDict] "extendOrder" $ do
     rollRev @6
     rollRev @6
+    stacktype' @[Word32, AccumPkDict, Hash SignMsgBody, Cell SignMsgBody, OrderDict, Nonce, TimestampDict]
     push @2
     push @5
+    stacktype' @[OrderDict, Hash SignMsgBody, Word32, AccumPkDict]
     dictGet
     if IsJust then do
-        stacktype' @[Order, Word32]
-        cast @Order @Slice
-        decodeFromSliceFull @Order
-        pop @1
-        -- ^ drop MsgBody from storage because there is one from msg
-        moveOnTop @2
-        swap
+        stacktype' @[DSet PublicKey, Word32]
         false -- not new one
-        rollRev @3
-        --                                                    v whether new order or not
     else do
-        swap
         newDict
         true -- new one
-        rollRev @3
 
-    swap
+    stacktype' @[Bool, DSet PublicKey, Word32, AccumPkDict]
+
+    rollRev @3
+    moveOnTop @2
+
+    stacktype' @[AccumPkDict, DSet PublicKey, Word32, Bool]
     cast @AccumPkDict @(DSet PublicKey)
-    swap
+
     dictMerge
+
     if IsJust then do
         -- when not enough signatures
         stacktype' @[DSet PublicKey, Bool, Hash SignMsgBody, Cell SignMsgBody, OrderDict, Nonce, TimestampDict]
-        rollRev @4
-        rollRev @4
-        moveOnTop @3
+        moveOnTop @4
+        push @3
         moveOnTop @2
-        dup
-        rollRev @7
-        push @2
-        rollRev @8
-        stacktype' @[Cell SignMsgBody, DSet PublicKey, Hash SignMsgBody, OrderDict, Bool, Nonce, TimestampDict, Cell SignMsgBody, Hash SignMsgBody]
-        dictEncodeSet @(Hash SignMsgBody) @Order
+        dictEncodeSet @(Hash SignMsgBody) @(DSet PublicKey)
+
+        stacktype @'[OrderDict, Bool, Hash SignMsgBody, Cell SignMsgBody, Nonce, TimestampDict]
+
         rollRev @5
-        roll @4
-        roll @4
-        roll @2
-        stacktype' @[Bool, Cell SignMsgBody, Hash SignMsgBody,  Nonce, TimestampDict, OrderDict]
+
+        stacktype @'[Bool, Hash SignMsgBody, Cell SignMsgBody, Nonce, TimestampDict, OrderDict]
         ifElse addToTimestampSet (drop >> drop >> drop)
     else do
         stacktype' @[Bool, Hash SignMsgBody, Cell SignMsgBody, OrderDict, Nonce, TimestampDict]
@@ -253,8 +246,9 @@ extendOrder =
         ifElse (drop >> drop) removeFromTimestampSet
 
 -- Add to set to perform garbage collection effectively
-addToTimestampSet :: Cell SignMsgBody & Hash SignMsgBody & Nonce & TimestampDict & s :-> TimestampDict & s
+addToTimestampSet :: Hash SignMsgBody & Cell SignMsgBody & Nonce & TimestampDict & s :-> TimestampDict & s
 addToTimestampSet = do
+    swap
     decodeFromCell @SignMsgBody
     drop
     pop @1
@@ -302,27 +296,30 @@ getOrdersByKey = do
     newDict
     cast @OrderDict @AccumOrderDict
     swap
+    stacktype @'[OrderDict, AccumOrderDict, Bool, PublicKey]
     dictIter $ do
-      stacktype' @'[DSet PublicKey, Cell SignMsgBody, Hash SignMsgBody, OrderDict, AccumOrderDict, Bool, PublicKey]
-      push @5
-      push @7
-      push @2
+      stacktype @'[DSet PublicKey, Hash SignMsgBody, OrderDict, AccumOrderDict, Bool, PublicKey]
+      dup
+      stacktype @'[DSet PublicKey, DSet PublicKey, Hash SignMsgBody, OrderDict, AccumOrderDict, Bool, PublicKey]
+      push @6
+      push @6
+      reversePrefix @3
       checkSignMsgBodyBelongsToPk
+      stacktype @'[Bool, DSet PublicKey, Hash SignMsgBody, OrderDict, AccumOrderDict, Bool, PublicKey]
       ifElse
         (do
-          stacktype' @'[DSet PublicKey, Cell SignMsgBody, Hash SignMsgBody, OrderDict, AccumOrderDict]
+          stacktype @'[DSet PublicKey, Hash SignMsgBody, OrderDict, AccumOrderDict, Bool, PublicKey]
+          moveOnTop @2
           moveOnTop @3
-          moveOnTop @4
           cast @AccumOrderDict @OrderDict
-          rollRev @4
-          rollRev @4
-          stacktype' @'[DSet PublicKey, Cell SignMsgBody, Hash SignMsgBody, {-Accum-}OrderDict, OrderDict]
-          swap
+          rollRev @3
+          rollRev @3
+          stacktype' @'[DSet PublicKey, Hash SignMsgBody, {-Accum-}OrderDict, OrderDict]
           dictEncodeSet
           cast @OrderDict @AccumOrderDict
           swap
         )
-        (drop >> drop >> drop)
+        (drop >> drop)
     pop @1
     pop @1
 

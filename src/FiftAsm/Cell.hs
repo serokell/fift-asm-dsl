@@ -106,7 +106,6 @@ preloadFromCell = do
     cToS @a
     preloadFromSlice @a
 
-
 instance DecodeSlice Word8 where
     decodeFromSliceImpl = mkI $ LDU 8
     preloadFromSliceImpl = mkI $ PLDU 8
