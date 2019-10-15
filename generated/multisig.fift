@@ -1,14 +1,14 @@
 PROGRAM{
 DECLPROC dictMerge_cf0704_025476
 DECLPROC dictRemMin_127a34_ca7b2f
-DECLPROC dictRemMin_71e818_7a8934
-DECLPROC dictRemMin_92fa02_d04e2c
 DECLPROC dictRemMin_9c04e2_79ddb5
+DECLPROC dictRemMin_c65bb9_f510af
+DECLPROC dictRemMin_c9f57c_97918e
 DECLPROC dictSize_e253a9_653d1b
-DECLPROC extendOrder_c4715f_dc75cb
+DECLPROC extendOrder_8d641d_7e67e8
 DECLPROC filterValidSignatures_02f883_067ad0
-DECLPROC garbageCollectOrders_dc75cb_dc75cb
-DECLPROC recvSignMsg_fda5a0_77b32c
+DECLPROC garbageCollectOrders_7e67e8_7e67e8
+DECLPROC recvSignMsg_7a6fe2_77b32c
 dictMerge_cf0704_025476 PROC:<{
   // Merge two dictionaries
   s0 PUSH
@@ -111,7 +111,16 @@ dictRemMin_127a34_ca7b2f PROC:<{
     DROP
    TRUE }>ELSE<{ FALSE }>
 }>
-dictRemMin_71e818_7a8934 PROC:<{
+dictRemMin_9c04e2_79ddb5 PROC:<{
+  256 INT
+  DICTREMMIN
+  IF:<{
+    // Decode from slice @PublicKey
+    256 LDU
+    DROP
+   TRUE }>ELSE<{ FALSE }>
+}>
+dictRemMin_c65bb9_f510af PROC:<{
   64 INT
   DICTREMMIN
   IF:<{
@@ -120,20 +129,11 @@ dictRemMin_71e818_7a8934 PROC:<{
     DROP
    TRUE }>ELSE<{ FALSE }>
 }>
-dictRemMin_92fa02_d04e2c PROC:<{
+dictRemMin_c9f57c_97918e PROC:<{
   256 INT
   DICTREMMIN
   IF:<{
-    // Decode from slice @Hash * SignPayload
-    256 LDU
-    DROP
-   TRUE }>ELSE<{ FALSE }>
-}>
-dictRemMin_9c04e2_79ddb5 PROC:<{
-  256 INT
-  DICTREMMIN
-  IF:<{
-    // Decode from slice @PublicKey
+    // Decode from slice @Hash * OrderIdPayload
     256 LDU
     DROP
    TRUE }>ELSE<{ FALSE }>
@@ -187,7 +187,7 @@ dictSize_e253a9_653d1b PROC:<{
     0 INT
   }>
 }>
-extendOrder_c4715f_dc75cb PROC:<{
+extendOrder_8d641d_7e67e8 PROC:<{
   6 ROLLREV
   6 ROLLREV
   s2 PUSH
@@ -349,18 +349,18 @@ filterValidSignatures_02f883_067ad0 PROC:<{
   s1 POP
   s1 POP
 }>
-garbageCollectOrders_dc75cb_dc75cb PROC:<{
+garbageCollectOrders_7e67e8_7e67e8 PROC:<{
   NOW
   SWAP
   s0 PUSH
   // Iterate over dictionary
-  dictRemMin_71e818_7a8934 CALL
+  dictRemMin_c65bb9_f510af CALL
   WHILE:<{
     DUP
   }>DO<{
     IF:<{
       SWAP
-      // Decode from slice @Hash * SignPayload
+      // Decode from slice @Hash * OrderIdPayload
       256 LDU
       DROP
       SWAP
@@ -386,7 +386,7 @@ garbageCollectOrders_dc75cb_dc75cb PROC:<{
       
     }>
     
-    dictRemMin_71e818_7a8934 CALL
+    dictRemMin_c65bb9_f510af CALL
   }>
   
   IF:<{
@@ -399,7 +399,7 @@ garbageCollectOrders_dc75cb_dc75cb PROC:<{
   DROP
   s1 POP
 }>
-recvSignMsg_fda5a0_77b32c PROC:<{
+recvSignMsg_7a6fe2_77b32c PROC:<{
   // Handle sign message
   5 ROLL
   // Decode from slice @SignMsg
@@ -418,10 +418,12 @@ recvSignMsg_fda5a0_77b32c PROC:<{
   s9 PUSH
   EQUAL
   32 THROWIFNOT
+  s0 PUSH
   // Checking that the message hasn't expired
   NOW
   GREATER
   33 THROWIFNOT
+  8 ROLLREV
   s1 PUSH
   // Compute hash of message body
   MYADDR
@@ -431,18 +433,23 @@ recvSignMsg_fda5a0_77b32c PROC:<{
   ENDC
   HASHCU
   // Filter invalid signature from the message
-  s0 PUSH
-  s7 PUSH
+  s6 PUSH
   SWAP
-  5 ROLL
+  4 ROLL
   filterValidSignatures_02f883_067ad0 CALL
-  2 ROLL
-  DROP
+  1 ROLL
+  8 ROLL
+  NEWC
+  32 STU
+  STREF
+  ENDC
+  HASHCU
+  SWAP
   s6 PUSH
   4 ROLL
   s8 PUSH
-  extendOrder_c4715f_dc75cb CALL
-  garbageCollectOrders_dc75cb_dc75cb CALL
+  extendOrder_8d641d_7e67e8 CALL
+  garbageCollectOrders_7e67e8_7e67e8 CALL
   // Encode storage fields
   5 0 REVERSE
   INC
@@ -486,7 +493,7 @@ recv_external PROC:<{
     POPROOT
     DROP
   }>ELSE<{
-    recvSignMsg_fda5a0_77b32c CALL
+    recvSignMsg_7a6fe2_77b32c CALL
   }>
 }>
 DECLPROC recv_internal
@@ -531,7 +538,7 @@ ordersByKey PROC:<{
   NEWDICT
   SWAP
   // Iterate over dictionary
-  dictRemMin_92fa02_d04e2c CALL
+  dictRemMin_c9f57c_97918e CALL
   WHILE:<{
     DUP
   }>DO<{
@@ -581,7 +588,7 @@ ordersByKey PROC:<{
       
     }>
     
-    dictRemMin_92fa02_d04e2c CALL
+    dictRemMin_c9f57c_97918e CALL
   }>
   
   IF:<{
@@ -594,5 +601,21 @@ ordersByKey PROC:<{
   DROP
   s1 POP
   s1 POP
+}>
+85143 DECLMETHOD seqno
+seqno PROC:<{
+  PUSHROOT
+  CTOS
+  // Decode from slice @Storage
+  32 LDU
+  32 LDU
+  LDDICT
+  LDDICT
+  LDDICT
+  ENDS
+  DROP
+  DROP
+  DROP
+  DROP
 }>
 }END>c

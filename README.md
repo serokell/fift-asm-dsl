@@ -1,7 +1,7 @@
 # fift-asm-dsl
 
 For creating multisig contract we chose to create a DSL for Fift
-language using Haskell.
+assembler language using Haskell.
 
 Haskell has rich type system and we've found it perfectly capable
 of handling types of a stack language Fift.
@@ -13,17 +13,25 @@ capabilities for:
  * checking current stack type in assert-like style
  * declaring intermediate procedures (even for polymorphic procedures)
  * introducing type aliases to prohibit occassionally confusing elements on stack
-
+ * enhanced-type comparison operators (for not to confuse operands)
 
 DSL nicely integrates with common Haskell syntax (one can use do-notaion and
 if-then-else conditional statements).
 After the contract is implemented in DSL, it can be printed into Fift
 assembler and further be passed to `fift` compiler.
 
+DSL was created for the purpose of this concrete task, thus only a subset
+of fift assembler commands are covered. DSL has a lot of
+potential for usability improvement:
+
+* Automatic stack management (variable simulation)
+* Support of all Fift assembler instructions
+* Integration with QuickCheck for top-notch property-based testing
+
 ## Simple wallet contract
 
 For convenience of the reader, simple wallet contract (clone of that from ton repository)
-is re-implemnted in our DSL and can be accessed from directory `wallet`,
+is re-implemnted in our DSL. Implementation is located in `wallet/Main.hs`,
 generated code is located in `generated/wallet.fift`.
 
 To run generator use command: `stack exec -- gen-wallet`.
@@ -32,9 +40,23 @@ To run generator use command: `stack exec -- gen-wallet`.
 
 Multisig contract is implemented according to requirements provided in contest description.
 
-Storage contains:
+Implementation is located in `src/Multisig/` directory. File `src/Multisig/Impl.hs` contains
+implementation of all methods (functions `recvExternal`, `recvInternal`, `getAllOrders`, `getOrdersByKey`, `getSeqno`).
 
+Generated code can be accessed at `generated/multisig.fift`.
 
+Storage of the contract contains:
+  * Map from order id to public key set (for each order we keep who signed it already)
+  * Map from order id to expiration timestamp
+  * Nonce
+  * K
+  * Set of public keys (eligible for signing)
+
+Many classes of bugs are eliminated by advanced typing. During contract development
+many bugs were discovered and most of them were fixed with subsequent enhancing DSL
+to eliminate such kind of bugs in future.
+
+To run generator use command: `stack exec -- gen-multisig`.
 
 ## Usage instructions
 
